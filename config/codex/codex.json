@@ -1,0 +1,14 @@
+{
+  "mcp_servers": {
+    "evc-relay": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/evc-team-relay-mcp", "relay_mcp.py"],
+      "env": {
+        "RELAY_CP_URL": "https://cp.yourdomain.com",
+        "RELAY_EMAIL": "agent@yourdomain.com",
+        "RELAY_PASSWORD": "your-password"
+      }
+    }
+  }
+}

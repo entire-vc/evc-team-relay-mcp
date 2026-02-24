@@ -1,0 +1,10 @@
+services:
+  relay-mcp:
+    build: .
+    ports:
+      - "8888:8888"
+    environment:
+      - RELAY_CP_URL=${RELAY_CP_URL}
+      - RELAY_EMAIL=${RELAY_EMAIL}
+      - RELAY_PASSWORD=${RELAY_PASSWORD}
+    restart: unless-stopped
