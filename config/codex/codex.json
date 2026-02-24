@@ -2,8 +2,8 @@
   "mcp_servers": {
     "evc-relay": {
       "type": "stdio",
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/evc-team-relay-mcp", "relay_mcp.py"],
+      "command": "uvx",
+      "args": ["evc-team-relay-mcp"],
       "env": {
         "RELAY_CP_URL": "https://cp.yourdomain.com",
         "RELAY_EMAIL": "agent@yourdomain.com",

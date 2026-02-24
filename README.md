@@ -1,5 +1,6 @@
 # EVC Team Relay — MCP Server
 
+[![PyPI](https://img.shields.io/pypi/v/evc-team-relay-mcp)](https://pypi.org/project/evc-team-relay-mcp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-server-4A90D9)](https://modelcontextprotocol.io)
 [![Entire VC](https://img.shields.io/badge/Entire_VC-toolbox-525769)](https://entire.vc)
@@ -14,7 +15,13 @@ Works with **Claude Code**, **Codex CLI**, **OpenCode**, and any [MCP](https://m
 
 ## Quick Start
 
-### 1. Clone and install
+### 1. Install
+
+**Option A — from PyPI (recommended):**
+
+No installation needed — `uvx` downloads and runs automatically. Skip to step 2.
+
+**Option B — from source:**
 
 ```bash
 git clone https://github.com/entire-vc/evc-team-relay-mcp.git
@@ -24,7 +31,7 @@ uv sync   # or: pip install .
 
 ### 2. Configure your AI tool
 
-Copy the config snippet for your tool. Replace `/path/to/` with the actual clone path and fill in your credentials.
+Add the MCP server to your tool's config with your Relay credentials.
 
 <details>
 <summary><b>Claude Code</b></summary>
@@ -35,8 +42,8 @@ Add to `.mcp.json` in your project root or `~/.claude/.mcp.json`:
 {
   "mcpServers": {
     "evc-relay": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/evc-team-relay-mcp", "relay_mcp.py"],
+      "command": "uvx",
+      "args": ["evc-team-relay-mcp"],
       "env": {
         "RELAY_CP_URL": "https://cp.yourdomain.com",
         "RELAY_EMAIL": "agent@yourdomain.com",
@@ -59,8 +66,8 @@ Add to your `codex.json`:
   "mcp_servers": {
     "evc-relay": {
       "type": "stdio",
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/evc-team-relay-mcp", "relay_mcp.py"],
+      "command": "uvx",
+      "args": ["evc-team-relay-mcp"],
       "env": {
         "RELAY_CP_URL": "https://cp.yourdomain.com",
         "RELAY_EMAIL": "agent@yourdomain.com",
@@ -82,8 +89,8 @@ Add to `opencode.json`:
 {
   "mcpServers": {
     "evc-relay": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/evc-team-relay-mcp", "relay_mcp.py"],
+      "command": "uvx",
+      "args": ["evc-team-relay-mcp"],
       "env": {
         "RELAY_CP_URL": "https://cp.yourdomain.com",
         "RELAY_EMAIL": "agent@yourdomain.com",
@@ -96,7 +103,19 @@ Add to `opencode.json`:
 
 </details>
 
-Ready-to-copy config templates are in `config/`.
+<details>
+<summary><b>From source (all tools)</b></summary>
+
+If you installed from source instead of PyPI, replace `"command": "uvx"` / `"args": ["evc-team-relay-mcp"]` with:
+
+```json
+"command": "uv",
+"args": ["run", "--directory", "/path/to/evc-team-relay-mcp", "relay_mcp.py"]
+```
+
+</details>
+
+Ready-to-copy config templates are also in `config/`.
 
 ### 3. Use it
 
