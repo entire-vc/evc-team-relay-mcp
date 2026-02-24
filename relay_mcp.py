@@ -48,7 +48,10 @@ def _get_base_url() -> str:
 
 
 def _get_client() -> httpx.Client:
-    return httpx.Client(timeout=30.0)
+    # Disable keep-alive: Caddy sends GOAWAY on idle connections,
+    # httpx tries to reuse the stale socket and hangs.
+    limits = httpx.Limits(max_keepalive_connections=0)
+    return httpx.Client(timeout=30.0, limits=limits)
 
 
 def _ensure_token() -> str:
