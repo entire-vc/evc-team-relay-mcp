@@ -168,6 +168,20 @@ Then configure your MCP client to connect via HTTP:
 
 ---
 
+## Security
+
+The MCP server provides significant security advantages over shell-based integrations:
+
+- **No shell execution** — all operations are Python function calls via JSON-RPC, eliminating command injection risks
+- **No CLI arguments** — credentials and tokens are never passed as process arguments (invisible in `ps` output)
+- **Automatic token management** — the server handles login, JWT refresh, and token lifecycle internally; the agent never touches raw tokens
+- **Typed inputs** — all parameters are validated against JSON Schema before execution
+- **Single persistent process** — no per-call shell spawning, no environment leakage between invocations
+
+> **Note:** If you're using the [OpenClaw skill](https://github.com/entire-vc/evc-team-relay-openclaw-skill) (bash scripts), consider migrating to this MCP server for a more secure and maintainable integration.
+
+---
+
 ## How It Works
 
 ```
