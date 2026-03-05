@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/evc-team-relay-mcp)](https://pypi.org/project/evc-team-relay-mcp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-server-4A90D9)](https://modelcontextprotocol.io)
-[![Entire VC](https://img.shields.io/badge/Entire_VC-toolbox-525769)](https://entire.vc)
+[![Install via Spark](https://spark.entire.vc/badges/evc-team-relay-mcp/install.svg)](https://spark.entire.vc/get/evc-team-relay-mcp?utm_source=github&utm_medium=readme)
 
 **Give your AI agent read/write access to your Obsidian vault.**
 
