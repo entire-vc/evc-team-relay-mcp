@@ -1,4 +1,4 @@
-# EVC Team Relay — MCP Server
+# EVC Team Relay - MCP Server
 
 [![PyPI](https://img.shields.io/pypi/v/evc-team-relay-mcp)](https://pypi.org/project/evc-team-relay-mcp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
