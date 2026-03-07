@@ -24,7 +24,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/entire-vc/evc-team-relay-mcp"
+Homepage = "https://entire.vc/team-relay/"
 Repository = "https://github.com/entire-vc/evc-team-relay-mcp"
 Issues = "https://github.com/entire-vc/evc-team-relay-mcp/issues"
 
