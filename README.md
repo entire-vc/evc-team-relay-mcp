@@ -11,6 +11,10 @@
 
 Works with **Claude Code**, **Codex CLI**, **OpenCode**, and any [MCP](https://modelcontextprotocol.io)-compatible client.
 
+<a href="https://glama.ai/mcp/servers/@entire-vc/evc-team-relay-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@entire-vc/evc-team-relay-mcp/badge" alt="evc-team-relay-mcp MCP server" />
+</a>
+
 ---
 
 ## Quick Start
