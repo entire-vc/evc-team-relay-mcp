@@ -142,6 +142,10 @@ Authentication is automatic — the server logs in and refreshes tokens internal
 
 ---
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/evc-team-relay-mcp).
+
 ## Remote Deployment (HTTP Transport)
 
 For shared or server-side deployments, run as an HTTP server:
