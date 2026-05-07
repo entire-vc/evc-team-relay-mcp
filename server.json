@@ -1,0 +1,43 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.entire-vc/evc-team-relay-mcp",
+  "description": "MCP server for AI agent read/write access to Obsidian vaults via EVC Team Relay.",
+  "repository": {
+    "url": "https://github.com/entire-vc/evc-team-relay-mcp",
+    "source": "github"
+  },
+  "version": "1.0.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "evc-team-relay-mcp",
+      "version": "1.0.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "RELAY_CP_URL",
+          "description": "URL of the Team Relay control plane (e.g. https://cp.yourdomain.com)",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "RELAY_EMAIL",
+          "description": "Email address for authenticating with the Team Relay server",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "RELAY_PASSWORD",
+          "description": "Password for authenticating with the Team Relay server",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

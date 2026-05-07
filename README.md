@@ -224,7 +224,7 @@ The MCP server wraps Team Relay's REST API into standard MCP tools. Team Relay s
 - [Discussions](https://github.com/entire-vc/.github/discussions)
 - in@entire.vc
 
-<!-- mcp-name: io.github.entire-vc/evc-team-relay-mcp -->
+[//]: # (mcp-name: io.github.entire-vc/evc-team-relay-mcp)
 
 ## License
 
