@@ -1,0 +1,44 @@
+# Smithery configuration: https://smithery.ai/docs/build/project-config/smithery-yaml
+#
+# evc-team-relay-mcp is a stdio Python MCP server published to PyPI.
+# Tools (8) and their JSON schemas are introspected by Smithery at runtime
+# from the live server — see relay_mcp.py for the canonical definitions.
+# Server metadata (name, description, version, package) lives in server.json.
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - RELAY_CP_URL
+      - RELAY_EMAIL
+      - RELAY_PASSWORD
+    properties:
+      RELAY_CP_URL:
+        type: string
+        title: Relay Control Plane URL
+        description: URL of the Team Relay control plane (e.g. https://cp.yourdomain.com)
+      RELAY_EMAIL:
+        type: string
+        title: Relay Email
+        description: Email address for authenticating with the Team Relay server
+      RELAY_PASSWORD:
+        type: string
+        title: Relay Password
+        description: Password for authenticating with the Team Relay server
+        format: password
+  commandFunction:
+    |-
+    (config) => ({
+      command: 'uvx',
+      args: ['evc-team-relay-mcp'],
+      env: {
+        RELAY_CP_URL: config.RELAY_CP_URL,
+        RELAY_EMAIL: config.RELAY_EMAIL,
+        RELAY_PASSWORD: config.RELAY_PASSWORD
+      }
+    })
+  exampleConfig:
+    RELAY_CP_URL: https://cp.example.com
+    RELAY_EMAIL: user@example.com
+    RELAY_PASSWORD: example-password
