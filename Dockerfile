@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY pyproject.toml relay_mcp.py ./
+COPY pyproject.toml relay_mcp.py README.md ./
 
 RUN pip install --no-cache-dir .
 
