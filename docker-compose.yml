@@ -1,6 +1,6 @@
 services:
   relay-mcp:
-    build: .
+    image: deadalusevc/evc-team-relay-mcp:latest
     ports:
       - "8888:8888"
     environment:
