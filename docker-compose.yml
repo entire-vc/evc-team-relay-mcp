@@ -1,6 +1,6 @@
 services:
   relay-mcp:
-    build: .
+    image: entirevc/evc-team-relay-mcp:latest
     ports:
       - "8888:8888"
     environment:
