@@ -1,7 +1,7 @@
 # EVC Team Relay - MCP Server
 
 [![PyPI](https://img.shields.io/pypi/v/evc-team-relay-mcp)](https://pypi.org/project/evc-team-relay-mcp/)
-[![Docker Hub](https://img.shields.io/docker/v/entirevc/evc-team-relay-mcp?label=docker)](https://hub.docker.com/r/entirevc/evc-team-relay-mcp)
+[![Docker Hub](https://img.shields.io/docker/v/deadalusevc/evc-team-relay-mcp?label=docker)](https://hub.docker.com/r/deadalusevc/evc-team-relay-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-server-4A90D9)](https://modelcontextprotocol.io)
 [![Install via Spark](https://spark.entire.vc/badges/evc-team-relay-mcp/install.svg)](https://spark.entire.vc/assets/evc-team-relay-mcp?utm_source=github&utm_medium=readme)
@@ -158,7 +158,7 @@ RELAY_PASSWORD=your-password \
 docker compose up -d
 
 # Or pull explicitly
-docker pull entirevc/evc-team-relay-mcp:latest
+docker pull deadalusevc/evc-team-relay-mcp:latest
 ```
 
 Then configure your MCP client to connect via HTTP:
