@@ -6,12 +6,12 @@
     "url": "https://github.com/entire-vc/evc-team-relay-mcp",
     "source": "github"
   },
-  "version": "1.0.0",
+  "version": "1.0.1",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "evc-team-relay-mcp",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "transport": {
         "type": "stdio"
       },
