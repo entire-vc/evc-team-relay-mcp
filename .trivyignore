@@ -1,0 +1,17 @@
+# .trivyignore — accepted / triaged Trivy findings for evc-team-relay-mcp
+#
+# The trivy CI gate (.github/workflows/trivy.yml) runs `trivy fs` over the repo
+# and fails the build on any CRITICAL or HIGH dependency vulnerability that HAS
+# a fix available (ignore-unfixed: true).
+#
+# Add a CVE here ONLY after a deliberate accept-risk decision, and ALWAYS
+# document it inline: CVE → why it is not actionable/exploitable for us →
+# who accepted it → date. Revisit on each dependency bump.
+#
+# Format (one finding ID per line):
+#   # CVE-YYYY-NNNNN — <reason not exploitable / no adoptable fix>. Accepted by <name> <date>.
+#   CVE-YYYY-NNNNN
+
+# (empty) — baseline is clean: the two HIGH findings present at gate introduction
+# (pyjwt CVE-2026-32597, python-multipart CVE-2026-42561) were fixed by bumping
+# pyjwt -> 2.13.0 and python-multipart -> 0.0.29 in the same PR. No accepted risk.
