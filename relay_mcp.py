@@ -165,6 +165,48 @@ def list_files(share_id: str) -> str:
 
 
 @mcp.tool()
+def tr_search(share_id: str, query: str, limit: int = 20) -> str:
+    """Search published TR docs by path/name within a folder share.
+
+    Args:
+        share_id: UUID of the folder share.
+        query: Search string matched case-insensitively against file paths.
+        limit: Max results to return (default 20).
+
+    Returns:
+        JSON list of matching files:
+        [{"id": doc_id, "title": filename_without_ext, "path": full_path,
+          "relay_url": "relay://<share_id>/<path>", "updated_at": null}]
+    """
+    import json
+    from pathlib import Path
+
+    with _get_client() as client:
+        r = client.get(
+            f"{_get_base_url()}/v1/documents/{share_id}/files",
+            headers=_headers(),
+            params={"share_id": share_id},
+        )
+        r.raise_for_status()
+        files_data = r.json()
+
+    files = files_data.get("files", {})
+    q = query.lower()
+    matches = [
+        {
+            "id": (meta.get("id") or meta.get("doc_id")),
+            "title": Path(path).stem,
+            "path": path,
+            "relay_url": f"relay://{share_id}/{path}",
+            "updated_at": None,
+        }
+        for path, meta in sorted(files.items())
+        if q in path.lower()
+    ]
+    return json.dumps(matches[:limit])
+
+
+@mcp.tool()
 def read_file(share_id: str, file_path: str) -> str:
     """Read a file from a folder share by its path.
 
