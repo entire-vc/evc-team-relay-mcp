@@ -176,7 +176,7 @@ def tr_search(share_id: str, query: str, limit: int = 20) -> str:
     Returns:
         JSON list of matching files:
         [{"id": doc_id, "title": filename_without_ext, "path": full_path,
-          "relay_url": "relay://<share_id>/<path>", "updated_at": null}]
+          "relay_url": "relay://<slug>/<path>", "updated_at": null}]
     """
     import json
     from pathlib import Path
@@ -190,6 +190,19 @@ def tr_search(share_id: str, query: str, limit: int = 20) -> str:
         r.raise_for_status()
         files_data = r.json()
 
+    # Resolve share slug for relay:// URL; falls back to UUID on error
+    slug = share_id
+    try:
+        with _get_client() as client:
+            rs = client.get(f"{_get_base_url()}/v1/shares", headers=_headers())
+            if rs.status_code == 200:
+                for s in rs.json():
+                    if s.get("id") == share_id and s.get("slug"):
+                        slug = s["slug"]
+                        break
+    except Exception:
+        pass
+
     files = files_data.get("files", {})
     q = query.lower()
     matches = [
@@ -197,7 +210,7 @@ def tr_search(share_id: str, query: str, limit: int = 20) -> str:
             "id": (meta.get("id") or meta.get("doc_id")),
             "title": Path(path).stem,
             "path": path,
-            "relay_url": f"relay://{share_id}/{path}",
+            "relay_url": f"relay://{slug}/{path}",
             "updated_at": None,
         }
         for path, meta in sorted(files.items())
