@@ -36,12 +36,36 @@ uv sync   # or: pip install .
 
 ### 2. Configure your AI tool
 
-Add the MCP server to your tool's config with your Relay credentials.
+Add the MCP server to your tool's config. Choose one authentication method:
+
+**Agent key** (recommended if you use SSO login or only need write access) — create a key in the Obsidian plugin → Team Relay settings → **Agent Keys**. [Quickstart →](https://github.com/entire-vc/evc-team-relay/blob/main/docs/agent-keys.md)
+
+**Email + password** — use a dedicated agent account on your Relay instance.
 
 <details>
-<summary><b>Claude Code</b></summary>
+<summary><b>Claude Code — agent key</b></summary>
 
 Add to `.mcp.json` in your project root or `~/.claude/.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "evc-relay": {
+      "command": "uvx",
+      "args": ["evc-team-relay-mcp"],
+      "env": {
+        "RELAY_CP_URL": "https://cp.yourdomain.com",
+        "RELAY_AGENT_KEY": "tr_agent_your_key_here"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>Claude Code — email/password</b></summary>
 
 ```json
 {
@@ -75,8 +99,7 @@ Add to your `codex.json`:
       "args": ["evc-team-relay-mcp"],
       "env": {
         "RELAY_CP_URL": "https://cp.yourdomain.com",
-        "RELAY_EMAIL": "agent@yourdomain.com",
-        "RELAY_PASSWORD": "your-password"
+        "RELAY_AGENT_KEY": "tr_agent_your_key_here"
       }
     }
   }
@@ -98,8 +121,7 @@ Add to `opencode.json`:
       "args": ["evc-team-relay-mcp"],
       "env": {
         "RELAY_CP_URL": "https://cp.yourdomain.com",
-        "RELAY_EMAIL": "agent@yourdomain.com",
-        "RELAY_PASSWORD": "your-password"
+        "RELAY_AGENT_KEY": "tr_agent_your_key_here"
       }
     }
   }
@@ -119,6 +141,15 @@ If you installed from source instead of PyPI, replace `"command": "uvx"` / `"arg
 ```
 
 </details>
+
+**Environment variables:**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `RELAY_CP_URL` | Yes | Control plane base URL |
+| `RELAY_AGENT_KEY` | One of | Agent key from plugin settings (write-only, recommended) |
+| `RELAY_EMAIL` | One of | Account email (required for read access) |
+| `RELAY_PASSWORD` | One of | Account password (required for read access) |
 
 Ready-to-copy config templates are also in `config/`.
 

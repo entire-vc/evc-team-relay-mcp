@@ -47,6 +47,10 @@ def _get_base_url() -> str:
     return url.rstrip("/")
 
 
+def _get_agent_key() -> str | None:
+    return os.environ.get("RELAY_AGENT_KEY", "").strip() or None
+
+
 def _get_client() -> httpx.Client:
     # Disable keep-alive: Caddy sends GOAWAY on idle connections,
     # httpx tries to reuse the stale socket and hangs.
@@ -304,22 +308,48 @@ def read_document(share_id: str, doc_id: str = "", key: str = "contents") -> str
 def upsert_file(share_id: str, file_path: str, content: str) -> str:
     """Create or update a file in a folder share.
 
-    Automatically detects whether the file exists:
-    - Existing file -> updates content (PUT)
-    - New file -> creates file and registers in folder metadata (POST)
+    Two authentication modes:
 
-    This is the recommended way to write files to folder shares.
+    **Agent key mode** (RELAY_AGENT_KEY is set):
+    - share_id must be the share's web slug (e.g. "research-vault"), not a UUID
+    - Uses the upload endpoint with X-Agent-Key header — no password required
+    - File appears in Obsidian on the next sync cycle
+    - Write-only: list_shares, list_files, read_file still require credentials
+
+    **Email/password mode** (RELAY_EMAIL + RELAY_PASSWORD are set):
+    - share_id is the share UUID
+    - Syncs in real-time via CRDT
+    - Automatically detects create vs update
 
     Args:
-        share_id: UUID of the folder share.
-        file_path: File path within the folder (e.g. "notes/todo.md").
+        share_id: Share UUID (email/password mode) or web slug (agent key mode).
+        file_path: File path within the share (e.g. "notes/todo.md").
         content: Full text content to write.
 
     Returns:
-        JSON with doc_id, path, length, operation ("created" or "updated").
+        JSON with path, size/operation, and optional public_url.
     """
     import json
 
+    agent_key = _get_agent_key()
+    if agent_key:
+        # Agent key mode: upload endpoint, X-Agent-Key auth
+        with _get_client() as client:
+            r = client.post(
+                f"{_get_base_url()}/v1/web/shares/{share_id}/upload",
+                headers={
+                    "X-Agent-Key": agent_key,
+                    "Content-Type": "text/plain; charset=utf-8",
+                },
+                params={"path": file_path},
+                content=content.encode("utf-8"),
+            )
+            r.raise_for_status()
+            result = r.json()
+        result["operation"] = "uploaded"
+        return json.dumps(result)
+
+    # Email/password mode: CRDT path
     # Check if file exists
     with _get_client() as client:
         r = client.get(
