@@ -38,7 +38,7 @@ uv sync   # or: pip install .
 
 Add the MCP server to your tool's config. Choose one authentication method:
 
-**Agent key** (recommended if you use SSO login or only need write access) — create a key in the Obsidian plugin → Team Relay settings → **Agent Keys**. [Quickstart →](https://github.com/entire-vc/evc-team-relay/blob/main/docs/agent-keys.md)
+**Agent key** (recommended) — create a key in the Obsidian plugin → Team Relay settings → **Agent Keys**. Supports read and write: `list_files`, `read_file`, `tr_search`, and `upsert_file` all work with a single key. [Quickstart →](https://github.com/entire-vc/evc-team-relay/blob/main/docs/agent-keys.md)
 
 **Email + password** — use a dedicated agent account on your Relay instance.
 
@@ -147,9 +147,9 @@ If you installed from source instead of PyPI, replace `"command": "uvx"` / `"arg
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `RELAY_CP_URL` | Yes | Control plane base URL |
-| `RELAY_AGENT_KEY` | One of | Agent key from plugin settings (write-only, recommended) |
-| `RELAY_EMAIL` | One of | Account email (required for read access) |
-| `RELAY_PASSWORD` | One of | Account password (required for read access) |
+| `RELAY_AGENT_KEY` | One of | Agent key from plugin settings — read + write (recommended) |
+| `RELAY_EMAIL` | One of | Account email (email/password mode) |
+| `RELAY_PASSWORD` | One of | Account password (email/password mode) |
 
 Ready-to-copy config templates are also in `config/`.
 

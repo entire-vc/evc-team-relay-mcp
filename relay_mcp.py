@@ -51,6 +51,10 @@ def _get_agent_key() -> str | None:
     return os.environ.get("RELAY_AGENT_KEY", "").strip() or None
 
 
+def _agent_headers(key: str) -> dict[str, str]:
+    return {"X-Agent-Key": key}
+
+
 def _get_client() -> httpx.Client:
     # Disable keep-alive: Caddy sends GOAWAY on idle connections,
     # httpx tries to reuse the stale socket and hangs.
@@ -113,10 +117,14 @@ def _headers() -> dict[str, str]:
 def authenticate() -> str:
     """Authenticate with the Relay Control Plane.
 
-    Uses RELAY_EMAIL and RELAY_PASSWORD env vars.
-    Returns a status message. The token is managed internally —
-    subsequent tool calls use it automatically.
+    In agent-key mode (RELAY_AGENT_KEY is set): no login is needed —
+    each request carries X-Agent-Key directly.
+
+    In email/password mode: uses RELAY_EMAIL and RELAY_PASSWORD env vars.
+    The token is managed internally; subsequent tool calls use it automatically.
     """
+    if _get_agent_key():
+        return "Agent key mode active — no email/password authentication required."
     token = _ensure_token()
     return f"Authenticated successfully. Token length: {len(token)}"
 
@@ -152,12 +160,27 @@ def list_shares(kind: str = "", owned_only: bool = False) -> str:
 def list_files(share_id: str) -> str:
     """List files in a folder share.
 
+    In agent-key mode (RELAY_AGENT_KEY is set): uses the agent-key endpoint;
+    share_id may be a UUID or web slug.
+
+    In email/password mode: share_id must be a UUID.
+
     Args:
-        share_id: UUID of the folder share.
+        share_id: UUID or web slug of the folder share.
 
     Returns:
-        JSON with doc_id and files map (path -> {doc_id, type}).
+        JSON with share_id and files map (path -> metadata).
     """
+    agent_key = _get_agent_key()
+    if agent_key:
+        with _get_client() as client:
+            r = client.get(
+                f"{_get_base_url()}/v1/web/shares/{share_id}/files-index",
+                headers=_agent_headers(agent_key),
+            )
+            r.raise_for_status()
+        return r.text
+
     with _get_client() as client:
         r = client.get(
             f"{_get_base_url()}/v1/documents/{share_id}/files",
@@ -170,21 +193,51 @@ def list_files(share_id: str) -> str:
 
 @mcp.tool()
 def tr_search(share_id: str, query: str, limit: int = 20) -> str:
-    """Search published TR docs by path/name within a folder share.
+    """Search TR docs by path/name within a folder share.
+
+    In agent-key mode (RELAY_AGENT_KEY is set): share_id may be UUID or web slug.
+    In email/password mode: share_id must be a UUID.
 
     Args:
-        share_id: UUID of the folder share.
+        share_id: UUID or web slug of the folder share.
         query: Search string matched case-insensitively against file paths.
         limit: Max results to return (default 20).
 
     Returns:
         JSON list of matching files:
-        [{"id": doc_id, "title": filename_without_ext, "path": full_path,
+        [{"id": doc_id_or_null, "title": filename_without_ext, "path": full_path,
           "relay_url": "relay://<slug>/<path>", "updated_at": null}]
     """
     import json
     from pathlib import Path
 
+    agent_key = _get_agent_key()
+
+    if agent_key:
+        with _get_client() as client:
+            r = client.get(
+                f"{_get_base_url()}/v1/web/shares/{share_id}/files-index",
+                headers=_agent_headers(agent_key),
+            )
+            r.raise_for_status()
+            files_data = r.json()
+
+        files = files_data.get("files", {})
+        q = query.lower()
+        matches = [
+            {
+                "id": None,
+                "title": Path(path).stem,
+                "path": path,
+                "relay_url": f"relay://{share_id}/{path}",
+                "updated_at": meta.get("modified_at"),
+            }
+            for path, meta in sorted(files.items())
+            if q in path.lower()
+        ]
+        return json.dumps(matches[:limit])
+
+    # Email/password mode
     with _get_client() as client:
         r = client.get(
             f"{_get_base_url()}/v1/documents/{share_id}/files",
@@ -227,19 +280,37 @@ def tr_search(share_id: str, query: str, limit: int = 20) -> str:
 def read_file(share_id: str, file_path: str) -> str:
     """Read a file from a folder share by its path.
 
-    Resolves path -> doc_id automatically. This is the recommended
-    way to read files from folder shares.
+    In agent-key mode (RELAY_AGENT_KEY is set): fetches via the agent-key
+    download endpoint; share_id may be a UUID or web slug.
+
+    In email/password mode: resolves path -> doc_id automatically;
+    share_id must be a UUID.
 
     Args:
-        share_id: UUID of the folder share.
+        share_id: UUID or web slug of the folder share.
         file_path: File path within the folder (e.g. "Marketing/plan.md").
 
     Returns:
-        JSON with doc_id, content, format, path.
+        JSON with content, format, and path.
     """
     import json
 
-    # Step 1: resolve path -> doc_id
+    agent_key = _get_agent_key()
+    if agent_key:
+        with _get_client() as client:
+            r = client.get(
+                f"{_get_base_url()}/v1/web/shares/{share_id}/download",
+                headers=_agent_headers(agent_key),
+                params={"path": file_path},
+            )
+            if r.status_code == 404:
+                return json.dumps({"error": f"File not found: {file_path}"})
+            r.raise_for_status()
+        content_type = r.headers.get("content-type", "text/plain")
+        fmt = "markdown" if "text/" in content_type else "binary"
+        return json.dumps({"path": file_path, "content": r.text, "format": fmt})
+
+    # Email/password mode: resolve path -> doc_id
     with _get_client() as client:
         r = client.get(
             f"{_get_base_url()}/v1/documents/{share_id}/files",
@@ -261,7 +332,6 @@ def read_file(share_id: str, file_path: str) -> str:
     if not doc_id:
         return json.dumps({"error": f"No doc_id for file: {file_path}"})
 
-    # Step 2: read content
     with _get_client() as client:
         r = client.get(
             f"{_get_base_url()}/v1/documents/{doc_id}/content",
@@ -311,10 +381,10 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
     Two authentication modes:
 
     **Agent key mode** (RELAY_AGENT_KEY is set):
-    - share_id must be the share's web slug (e.g. "research-vault"), not a UUID
+    - share_id may be the share UUID or web slug (e.g. "research-vault")
     - Uses the upload endpoint with X-Agent-Key header — no password required
     - File appears in Obsidian on the next sync cycle
-    - Write-only: list_shares, list_files, read_file still require credentials
+    - list_files, read_file, and tr_search also work with the same agent key
 
     **Email/password mode** (RELAY_EMAIL + RELAY_PASSWORD are set):
     - share_id is the share UUID
