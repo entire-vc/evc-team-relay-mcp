@@ -32,6 +32,9 @@ Issues = "https://github.com/entire-vc/evc-team-relay-mcp/issues"
 evc-team-relay-mcp = "relay_mcp:main"
 relay-mcp = "relay_mcp:main"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["."]
 only-include = ["relay_mcp.py"]
@@ -39,3 +42,8 @@ only-include = ["relay_mcp.py"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

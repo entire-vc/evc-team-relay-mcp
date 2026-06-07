@@ -55,6 +55,25 @@ def _agent_headers(key: str) -> dict[str, str]:
     return {"X-Agent-Key": key}
 
 
+def _resolve_share_kind(share_id: str, agent_key: str) -> str:
+    """Return 'folder' or 'doc' for the given share using agent-key auth.
+
+    Falls back to 'folder' if the endpoint is unavailable — upsert_file
+    is a folder-share tool, so this is the safe default.
+    """
+    try:
+        with _get_client() as client:
+            r = client.get(
+                f"{_get_base_url()}/v1/web/shares/{share_id}",
+                headers=_agent_headers(agent_key),
+            )
+            if r.status_code == 200:
+                return r.json().get("kind", "folder")
+    except Exception:
+        pass
+    return "folder"
+
+
 def _get_client() -> httpx.Client:
     # Disable keep-alive: Caddy sends GOAWAY on idle connections,
     # httpx tries to reuse the stale socket and hangs.
@@ -382,8 +401,9 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
 
     **Agent key mode** (RELAY_AGENT_KEY is set):
     - share_id may be the share UUID or web slug (e.g. "research-vault")
-    - Uses the upload endpoint with X-Agent-Key header — no password required
-    - File appears in Obsidian on the next sync cycle
+    - Folder shares use /sync-upload → file enters the CRDT sync store and
+      appears in subscribers' local Obsidian vaults on the next sync cycle
+    - Doc shares fall back to /upload (web-publish only)
     - list_files, read_file, and tr_search also work with the same agent key
 
     **Email/password mode** (RELAY_EMAIL + RELAY_PASSWORD are set):
@@ -403,10 +423,13 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
 
     agent_key = _get_agent_key()
     if agent_key:
-        # Agent key mode: upload endpoint, X-Agent-Key auth
+        # Route to sync-upload for folder shares (writes into CRDT sync store →
+        # subscribers' local vaults); fall back to upload for doc shares.
+        share_kind = _resolve_share_kind(share_id, agent_key)
+        upload_path = "sync-upload" if share_kind == "folder" else "upload"
         with _get_client() as client:
             r = client.post(
-                f"{_get_base_url()}/v1/web/shares/{share_id}/upload",
+                f"{_get_base_url()}/v1/web/shares/{share_id}/{upload_path}",
                 headers={
                     "X-Agent-Key": agent_key,
                     "Content-Type": "text/plain; charset=utf-8",
