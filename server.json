@@ -6,12 +6,12 @@
     "url": "https://github.com/entire-vc/evc-team-relay-mcp",
     "source": "github"
   },
-  "version": "1.0.3",
+  "version": "1.0.4",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "evc-team-relay-mcp",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "transport": {
         "type": "stdio"
       },
@@ -24,16 +24,30 @@
           "isSecret": false
         },
         {
+          "name": "RELAY_AGENT_KEY",
+          "description": "Agent key for single-share access (mutually exclusive with RELAY_AGENT_KEYS). Overrides RELAY_EMAIL/RELAY_PASSWORD.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "RELAY_AGENT_KEYS",
+          "description": "Comma-separated share_id:key pairs for multi-share access (e.g. mesh:key1,spark:key2). Takes priority over RELAY_AGENT_KEY for matched shares.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
           "name": "RELAY_EMAIL",
-          "description": "Email address for authenticating with the Team Relay server",
-          "isRequired": true,
+          "description": "Email for password auth (fallback when no agent key is configured)",
+          "isRequired": false,
           "format": "string",
           "isSecret": false
         },
         {
           "name": "RELAY_PASSWORD",
-          "description": "Password for authenticating with the Team Relay server",
-          "isRequired": true,
+          "description": "Password for auth (fallback when no agent key is configured)",
+          "isRequired": false,
           "format": "string",
           "isSecret": true
         }
