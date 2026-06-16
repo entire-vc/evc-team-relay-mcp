@@ -47,8 +47,47 @@ def _get_base_url() -> str:
     return url.rstrip("/")
 
 
+def _parse_agent_keys() -> dict[str, str]:
+    """Parse RELAY_AGENT_KEYS=share1:key1,share2:key2 into {share_ref: key}.
+
+    Reads fresh from env on each call (safe across monkeypatch in tests).
+    In production the env never changes, so cost is negligible.
+    """
+    raw = os.environ.get("RELAY_AGENT_KEYS", "").strip()
+    if not raw:
+        return {}
+    result: dict[str, str] = {}
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if ":" not in entry:
+            continue
+        share_ref, _, key = entry.partition(":")
+        share_ref = share_ref.strip()
+        key = key.strip()
+        if share_ref and key:
+            result[share_ref] = key
+    return result
+
+
 def _get_agent_key() -> str | None:
+    """Return RELAY_AGENT_KEY global single key, if set."""
     return os.environ.get("RELAY_AGENT_KEY", "").strip() or None
+
+
+def _get_key_for_share(share_id: str) -> str | None:
+    """Return agent key for a specific share.
+
+    Lookup order: per-share RELAY_AGENT_KEYS map → global RELAY_AGENT_KEY fallback.
+    """
+    keys = _parse_agent_keys()
+    if share_id in keys:
+        return keys[share_id]
+    return _get_agent_key()
+
+
+def _is_agent_key_mode() -> bool:
+    """True if any agent key is configured (RELAY_AGENT_KEYS or RELAY_AGENT_KEY)."""
+    return bool(_parse_agent_keys() or _get_agent_key())
 
 
 def _agent_headers(key: str) -> dict[str, str]:
@@ -142,7 +181,15 @@ def authenticate() -> str:
     In email/password mode: uses RELAY_EMAIL and RELAY_PASSWORD env vars.
     The token is managed internally; subsequent tool calls use it automatically.
     """
-    if _get_agent_key():
+    if _is_agent_key_mode():
+        multi = _parse_agent_keys()
+        if multi:
+            shares_desc = ", ".join(multi.keys())
+            suffix = " + global fallback key" if _get_agent_key() else ""
+            return (
+                f"Agent key mode active — {len(multi)} share-specific keys "
+                f"({shares_desc}){suffix}. Call list_shares to see accessible shares."
+            )
         return "Agent key mode active — no email/password authentication required."
     token = _ensure_token()
     return f"Authenticated successfully. Token length: {len(token)}"
@@ -152,13 +199,46 @@ def authenticate() -> str:
 def list_shares(kind: str = "", owned_only: bool = False) -> str:
     """List all accessible shares.
 
+    In multi-key mode (RELAY_AGENT_KEYS set): returns metadata for every share
+    that has a configured key, fetched via per-share agent-key auth.
+
+    In single-key mode (RELAY_AGENT_KEY only): returns an empty list — the
+    single key is tied to one share but its identity is unknown; call list_files
+    or tr_search directly with the known share_id.
+
+    In email/password mode: returns all shares the user has access to.
+
     Args:
         kind: Filter by share type — "doc" or "folder". Empty for all.
-        owned_only: If true, only return shares owned by the user.
+        owned_only: If true, only return shares owned by the user (email/password mode only).
 
     Returns:
         JSON array of shares with id, kind, path, visibility, user_role.
     """
+    import json
+
+    multi_keys = _parse_agent_keys()
+
+    if multi_keys:
+        shares: list[Any] = []
+        for share_ref, key in multi_keys.items():
+            try:
+                with _get_client() as client:
+                    r = client.get(
+                        f"{_get_base_url()}/v1/web/shares/{share_ref}",
+                        headers=_agent_headers(key),
+                    )
+                    if r.status_code == 200:
+                        data = r.json()
+                        if not kind or data.get("kind") == kind:
+                            shares.append(data)
+            except Exception:
+                pass
+        return json.dumps(shares)
+
+    if _get_agent_key():
+        return json.dumps([])
+
     params: dict[str, Any] = {}
     if kind:
         params["kind"] = kind
@@ -179,8 +259,8 @@ def list_shares(kind: str = "", owned_only: bool = False) -> str:
 def list_files(share_id: str) -> str:
     """List files in a folder share.
 
-    In agent-key mode (RELAY_AGENT_KEY is set): uses the agent-key endpoint;
-    share_id may be a UUID or web slug.
+    In agent-key mode (RELAY_AGENT_KEYS or RELAY_AGENT_KEY is set): uses the
+    agent-key endpoint; share_id may be a UUID or web slug.
 
     In email/password mode: share_id must be a UUID.
 
@@ -190,7 +270,7 @@ def list_files(share_id: str) -> str:
     Returns:
         JSON with share_id and files map (path -> metadata).
     """
-    agent_key = _get_agent_key()
+    agent_key = _get_key_for_share(share_id)
     if agent_key:
         with _get_client() as client:
             r = client.get(
@@ -230,7 +310,7 @@ def tr_search(share_id: str, query: str, limit: int = 20) -> str:
     import json
     from pathlib import Path
 
-    agent_key = _get_agent_key()
+    agent_key = _get_key_for_share(share_id)
 
     if agent_key:
         with _get_client() as client:
@@ -314,7 +394,7 @@ def read_file(share_id: str, file_path: str) -> str:
     """
     import json
 
-    agent_key = _get_agent_key()
+    agent_key = _get_key_for_share(share_id)
     if agent_key:
         with _get_client() as client:
             r = client.get(
@@ -421,7 +501,7 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
     """
     import json
 
-    agent_key = _get_agent_key()
+    agent_key = _get_key_for_share(share_id)
     if agent_key:
         # Route to sync-upload for folder shares (writes into CRDT sync store →
         # subscribers' local vaults); fall back to upload for doc shares.
