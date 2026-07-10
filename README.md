@@ -192,6 +192,10 @@ docker compose up -d
 docker pull deadalusevc/evc-team-relay-mcp:latest
 ```
 
+**By default the server binds to `127.0.0.1` (localhost-only)** — the endpoint is not
+reachable over the network even if the host has a public IP. This matches the common
+case of a single MCP client on the same machine as the server.
+
 Then configure your MCP client to connect via HTTP:
 
 ```json
@@ -199,11 +203,38 @@ Then configure your MCP client to connect via HTTP:
   "mcpServers": {
     "evc-relay": {
       "type": "streamable-http",
-      "url": "http://your-server:8888/mcp"
+      "url": "http://127.0.0.1:8888/mcp"
     }
   }
 }
 ```
+
+### Remote access via SSH tunnel (recommended)
+
+If your MCP client runs on a different machine than the server, tunnel to the
+localhost-bound port instead of exposing it publicly:
+
+```bash
+# From the client machine, forward local 8888 to the server's localhost:8888
+ssh -N -L 8888:127.0.0.1:8888 user@your-server
+```
+
+Then point the client config at `http://127.0.0.1:8888/mcp` as above — traffic
+goes through the SSH tunnel, and the server's bind address never needs to change.
+
+### Public / reverse-proxy binding (opt-in)
+
+If you genuinely need the server to accept connections from other hosts directly
+(e.g. it sits behind a reverse proxy that terminates TLS and handles auth), pass
+`--host` explicitly:
+
+```bash
+uv run relay_mcp.py --transport http --port 8888 --host 0.0.0.0
+```
+
+Only do this behind a reverse proxy or firewall — the MCP HTTP endpoint itself
+has no built-in authentication, so binding it to `0.0.0.0` on an open network
+exposes every relay tool call to anyone who can reach the port.
 
 ---
 
