@@ -623,6 +623,7 @@ def delete_file(share_id: str, file_path: str) -> str:
 def main():
     transport = "stdio"
     port = 8888
+    host = "127.0.0.1"  # localhost-only by default; use --host 0.0.0.0 behind a reverse proxy
 
     args = sys.argv[1:]
     i = 0
@@ -633,10 +634,14 @@ def main():
         elif args[i] in ("--port", "-p"):
             port = int(args[i + 1])
             i += 2
+        elif args[i] in ("--host",):
+            host = args[i + 1]
+            i += 2
         else:
             i += 1
 
     if transport in ("http", "streamable-http"):
+        mcp.settings.host = host
         mcp.settings.port = port
         mcp.run(transport="streamable-http")
     else:
