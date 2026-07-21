@@ -17,7 +17,6 @@ import os
 import sys
 import time
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -28,9 +27,11 @@ mcp = FastMCP(
     instructions=(
         "EVC Team Relay tools for reading and writing Obsidian vault documents. "
         "Start by calling `authenticate` to get a token, then use `list_shares` "
-        "to discover available shares. For folder shares, use `read_file` and "
-        "`upsert_file` with file paths. For doc shares, use `read_document` "
-        "with the share_id as doc_id."
+        "to discover available shares. For folder shares, use `read_file`, "
+        "`list_files` and `tr_search` with file paths (agent-key mode also "
+        "supports writing via `upsert_file`). DOC-share content, per-file "
+        "delete, and JWT-mode writes have no backend route yet — those tools "
+        "raise a clear error rather than silently failing; see TR-05."
     ),
 )
 
@@ -168,6 +169,47 @@ def _headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {_ensure_token()}"}
 
 
+def _jwt_list_files(share_id: str) -> dict[str, dict]:
+    """Fetch the CAS sync-artifact file index for a folder share (email/password mode).
+
+    Uses GET /v1/shares/{share_id}/files-index (Bearer JWT) — the real, working
+    counterpart to the agent-key /v1/web/shares/{id}/files-index endpoint. Only
+    items uploaded via sync-upload (source=sync-artifact) are returned; this is
+    a server-side filter on the shared endpoint, not a client limitation.
+
+    Returns {path: {type, size, modified_at, sha256}}.
+    """
+    with _get_client() as client:
+        r = client.get(
+            f"{_get_base_url()}/v1/shares/{share_id}/files-index",
+            headers=_headers(),
+        )
+        r.raise_for_status()
+        items = r.json()
+    return {
+        item["path"]: {
+            "type": item.get("type", "doc"),
+            "size": item.get("size"),
+            "modified_at": item.get("updated_at"),
+            "sha256": item.get("sha256"),
+        }
+        for item in items
+    }
+
+
+_NO_DOCUMENTS_API = (
+    "{tool} is not available: the control-plane has no REST route for this "
+    "operation. relay_mcp.py was written against a /v1/documents/* API that "
+    "was never implemented server-side (confirmed absent across the full git "
+    "history of evc-team-relay-cp) — only agent-key CAS sync "
+    "(list_files/read_file/upsert_file for FOLDER shares, agent-key mode) and "
+    "JWT read of that same CAS index (list_files/tr_search/read_file, "
+    "email/password mode) are real. DOC-share live content and any per-file "
+    "delete have no backend route in either auth mode; a JWT-mode folder-share "
+    "write has no route either. See Mesh task TR-05 (#0cdd5328) follow-up."
+)
+
+
 # ── MCP Tools ────────────────────────────────────────────────
 
 
@@ -270,6 +312,8 @@ def list_files(share_id: str) -> str:
     Returns:
         JSON with share_id and files map (path -> metadata).
     """
+    import json
+
     agent_key = _get_key_for_share(share_id)
     if agent_key:
         with _get_client() as client:
@@ -280,14 +324,8 @@ def list_files(share_id: str) -> str:
             r.raise_for_status()
         return r.text
 
-    with _get_client() as client:
-        r = client.get(
-            f"{_get_base_url()}/v1/documents/{share_id}/files",
-            headers=_headers(),
-            params={"share_id": share_id},
-        )
-        r.raise_for_status()
-    return r.text
+    files = _jwt_list_files(share_id)
+    return json.dumps({"share_id": share_id, "files": files})
 
 
 @mcp.tool()
@@ -337,14 +375,7 @@ def tr_search(share_id: str, query: str, limit: int = 20) -> str:
         return json.dumps(matches[:limit])
 
     # Email/password mode
-    with _get_client() as client:
-        r = client.get(
-            f"{_get_base_url()}/v1/documents/{share_id}/files",
-            headers=_headers(),
-            params={"share_id": share_id},
-        )
-        r.raise_for_status()
-        files_data = r.json()
+    files = _jwt_list_files(share_id)
 
     # Resolve share slug for relay:// URL; falls back to UUID on error
     slug = share_id
@@ -359,15 +390,14 @@ def tr_search(share_id: str, query: str, limit: int = 20) -> str:
     except Exception:
         pass
 
-    files = files_data.get("files", {})
     q = query.lower()
     matches = [
         {
-            "id": (meta.get("id") or meta.get("doc_id")),
+            "id": None,
             "title": Path(path).stem,
             "path": path,
             "relay_url": f"relay://{slug}/{path}",
-            "updated_at": None,
+            "updated_at": meta.get("modified_at"),
         }
         for path, meta in sorted(files.items())
         if q in path.lower()
@@ -382,8 +412,8 @@ def read_file(share_id: str, file_path: str) -> str:
     In agent-key mode (RELAY_AGENT_KEY is set): fetches via the agent-key
     download endpoint; share_id may be a UUID or web slug.
 
-    In email/password mode: resolves path -> doc_id automatically;
-    share_id must be a UUID.
+    In email/password mode: fetches via the same CAS download endpoint used by
+    agent-key mode, over Bearer JWT instead of X-Agent-Key; share_id must be a UUID.
 
     Args:
         share_id: UUID or web slug of the folder share.
@@ -409,68 +439,38 @@ def read_file(share_id: str, file_path: str) -> str:
         fmt = "markdown" if "text/" in content_type else "binary"
         return json.dumps({"path": file_path, "content": r.text, "format": fmt})
 
-    # Email/password mode: resolve path -> doc_id
+    # Email/password mode
     with _get_client() as client:
         r = client.get(
-            f"{_get_base_url()}/v1/documents/{share_id}/files",
+            f"{_get_base_url()}/v1/shares/{share_id}/download",
             headers=_headers(),
-            params={"share_id": share_id},
+            params={"path": file_path},
         )
+        if r.status_code == 404:
+            return json.dumps({"error": f"File not found: {file_path}"})
         r.raise_for_status()
-        files_data = r.json()
-
-    files = files_data.get("files", {})
-    file_meta = files.get(file_path)
-    if not file_meta:
-        available = list(files.keys())[:20]
-        return json.dumps(
-            {"error": f"File not found: {file_path}", "available_files": available}
-        )
-
-    doc_id = file_meta.get("id") or file_meta.get("doc_id")
-    if not doc_id:
-        return json.dumps({"error": f"No doc_id for file: {file_path}"})
-
-    with _get_client() as client:
-        r = client.get(
-            f"{_get_base_url()}/v1/documents/{doc_id}/content",
-            headers=_headers(),
-            params={"share_id": share_id, "key": "contents"},
-        )
-        r.raise_for_status()
-        content_data = r.json()
-
-    content_data["path"] = file_path
-    return json.dumps(content_data)
+    content_type = r.headers.get("content-type", "text/plain")
+    fmt = "markdown" if "text/" in content_type else "binary"
+    return json.dumps({"path": file_path, "content": r.text, "format": fmt})
 
 
 @mcp.tool()
 def read_document(share_id: str, doc_id: str = "", key: str = "contents") -> str:
-    """Read document content by doc_id (low-level).
+    """NOT CURRENTLY AVAILABLE — always raises.
 
-    For doc shares, omit doc_id — it defaults to share_id.
-    For folder shares, pass the file's doc_id from list_files.
-    Prefer read_file for folder shares.
+    The control-plane has no REST route for reading a document's live content
+    by ID for either DOC-kind shares or a folder-share file's doc_id (that
+    concept doesn't exist in the current CAS-based folder sync model). Use
+    read_file for folder shares in agent-key mode. See TR-05 follow-up.
 
     Args:
         share_id: UUID of the share (for ACL check).
         doc_id: Document UUID. Defaults to share_id for doc shares.
         key: Yjs shared type key. Default "contents".
-
-    Returns:
-        JSON with doc_id, content, format.
     """
     if not doc_id:
         doc_id = share_id
-
-    with _get_client() as client:
-        r = client.get(
-            f"{_get_base_url()}/v1/documents/{doc_id}/content",
-            headers=_headers(),
-            params={"share_id": share_id, "key": key},
-        )
-        r.raise_for_status()
-    return r.text
+    raise ValueError(_NO_DOCUMENTS_API.format(tool="read_document"))
 
 
 @mcp.tool()
@@ -486,10 +486,9 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
     - Doc shares fall back to /upload (web-publish only)
     - list_files, read_file, and tr_search also work with the same agent key
 
-    **Email/password mode** (RELAY_EMAIL + RELAY_PASSWORD are set):
-    - share_id is the share UUID
-    - Syncs in real-time via CRDT
-    - Automatically detects create vs update
+    **Email/password mode** — NOT CURRENTLY AVAILABLE, always raises.
+    The control-plane has no write route reachable by JWT for an arbitrary
+    (non-web-published) folder share. Use agent-key mode instead. See TR-05.
 
     Args:
         share_id: Share UUID (email/password mode) or web slug (agent key mode).
@@ -497,7 +496,7 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
         content: Full text content to write.
 
     Returns:
-        JSON with path, size/operation, and optional public_url.
+        JSON with path, size/operation, and optional public_url (agent-key mode).
     """
     import json
 
@@ -522,100 +521,45 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
         result["operation"] = "uploaded"
         return json.dumps(result)
 
-    # Email/password mode: CRDT path
-    # Check if file exists
-    with _get_client() as client:
-        r = client.get(
-            f"{_get_base_url()}/v1/documents/{share_id}/files",
-            headers=_headers(),
-            params={"share_id": share_id},
-        )
-        r.raise_for_status()
-        files_data = r.json()
-
-    files = files_data.get("files", {})
-    file_meta = files.get(file_path)
-    existing_doc_id = None
-    if file_meta:
-        existing_doc_id = file_meta.get("id") or file_meta.get("doc_id")
-
-    if existing_doc_id:
-        # Update existing file
-        with _get_client() as client:
-            r = client.put(
-                f"{_get_base_url()}/v1/documents/{existing_doc_id}/content",
-                headers=_headers(),
-                json={"share_id": share_id, "content": content, "key": "contents"},
-            )
-            r.raise_for_status()
-            result = r.json()
-        result["path"] = file_path
-        result["operation"] = "updated"
-        return json.dumps(result)
-    else:
-        # Create new file
-        with _get_client() as client:
-            r = client.post(
-                f"{_get_base_url()}/v1/documents/{share_id}/files",
-                headers=_headers(),
-                json={"share_id": share_id, "path": file_path, "content": content},
-            )
-            r.raise_for_status()
-            result = r.json()
-        result["operation"] = "created"
-        return json.dumps(result)
+    # Email/password mode: no backend write route exists (see _NO_DOCUMENTS_API).
+    # Note: even /v1/web/shares/{slug}/files (JWT-capable) is not a safe substitute —
+    # it writes items without source=sync-artifact, which the files-index read path
+    # (both agent-key and JWT) filters out, so the write would silently vanish from
+    # every subsequent list_files/read_file call. An honest error beats that.
+    raise ValueError(_NO_DOCUMENTS_API.format(tool="upsert_file (email/password mode)"))
 
 
 @mcp.tool()
 def write_document(
     share_id: str, doc_id: str, content: str, key: str = "contents"
 ) -> str:
-    """Write content to a document by doc_id (doc shares only).
+    """NOT CURRENTLY AVAILABLE — always raises.
 
-    For folder shares, use upsert_file instead.
+    The control-plane has no REST route for writing a document's live content
+    by ID (doc-share content is CRDT/WebSocket-only). See TR-05 follow-up.
 
     Args:
         share_id: UUID of the share (for ACL check).
         doc_id: Document UUID.
         content: Full text content to write (replaces entire document).
         key: Yjs shared type key. Default "contents".
-
-    Returns:
-        JSON with doc_id, length.
     """
-    with _get_client() as client:
-        r = client.put(
-            f"{_get_base_url()}/v1/documents/{doc_id}/content",
-            headers=_headers(),
-            json={"share_id": share_id, "content": content, "key": key},
-        )
-        r.raise_for_status()
-    return r.text
+    raise ValueError(_NO_DOCUMENTS_API.format(tool="write_document"))
 
 
 @mcp.tool()
 def delete_file(share_id: str, file_path: str) -> str:
-    """Delete a file from a folder share.
+    """NOT CURRENTLY AVAILABLE — always raises.
 
-    Removes the file from the folder's metadata registry.
-    The file disappears from Obsidian on next sync.
+    The control-plane has no DELETE route for an individual folder-share file
+    in ANY auth mode (agent-key or JWT) — this isn't a JWT-vs-agent-key gap,
+    per-file deletion simply isn't implemented server-side yet. See TR-05.
 
     Args:
         share_id: UUID of the folder share.
         file_path: File path within the folder (e.g. "old-note.md").
-
-    Returns:
-        JSON with path and status.
     """
-    encoded_path = quote(file_path, safe="")
-    with _get_client() as client:
-        r = client.delete(
-            f"{_get_base_url()}/v1/documents/{share_id}/files/{encoded_path}",
-            headers=_headers(),
-            params={"share_id": share_id},
-        )
-        r.raise_for_status()
-    return r.text
+    raise ValueError(_NO_DOCUMENTS_API.format(tool="delete_file"))
 
 
 # ── Entry point ──────────────────────────────────────────────
