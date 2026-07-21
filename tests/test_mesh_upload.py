@@ -261,7 +261,11 @@ class TestUpsertFileAgentKey:
 
 
 class TestUpsertFileEmailPassword:
-    """Email/password (CRDT) path is unchanged — smoke-test it still works."""
+    """Email/password mode has no backend write route (TR-05, #0cdd5328) — must
+    raise clearly instead of hitting the nonexistent /v1/documents/* API these
+    tests used to mock. The old mocked "success" here never worked against a
+    real server; asserting a raise is the honest behavior.
+    """
 
     @pytest.fixture(autouse=True)
     def email_env(self, monkeypatch):
@@ -269,58 +273,14 @@ class TestUpsertFileEmailPassword:
         monkeypatch.setenv("RELAY_EMAIL", "test@example.com")
         monkeypatch.setenv("RELAY_PASSWORD", "secret")
 
-    def test_updates_existing_file_via_crdt(self):
-        import relay_mcp
-
-        # Reset module-level token state
-        relay_mcp._token = "fake-jwt"
-        relay_mcp._token_expires = float("inf")
-
-        files_resp = _make_response(200, {"files": {FILE_PATH: {"id": "doc-uuid-123"}}})
-        put_resp = _make_response(200, {"doc_id": "doc-uuid-123", "length": 42})
-
-        files_client = MagicMock()
-        files_client.__enter__ = MagicMock(return_value=files_client)
-        files_client.__exit__ = MagicMock(return_value=False)
-        files_client.get.return_value = files_resp
-
-        put_client = MagicMock()
-        put_client.__enter__ = MagicMock(return_value=put_client)
-        put_client.__exit__ = MagicMock(return_value=False)
-        put_client.put.return_value = put_resp
-
-        clients = iter([files_client, put_client])
-
-        with patch.object(relay_mcp, "_get_client", side_effect=lambda: next(clients)):
-            result_raw = relay_mcp.upsert_file(SHARE_ID, FILE_PATH, CONTENT)
-
-        result = json.loads(result_raw)
-        assert result["operation"] == "updated"
-        assert result["path"] == FILE_PATH
-
-    def test_creates_new_file_via_crdt(self):
+    def test_raises_with_no_http_call(self, monkeypatch):
         import relay_mcp
 
         relay_mcp._token = "fake-jwt"
         relay_mcp._token_expires = float("inf")
 
-        files_resp = _make_response(200, {"files": {}})  # file does not exist
-        post_resp = _make_response(201, {"doc_id": "new-doc-uuid", "path": FILE_PATH})
-
-        files_client = MagicMock()
-        files_client.__enter__ = MagicMock(return_value=files_client)
-        files_client.__exit__ = MagicMock(return_value=False)
-        files_client.get.return_value = files_resp
-
-        post_client = MagicMock()
-        post_client.__enter__ = MagicMock(return_value=post_client)
-        post_client.__exit__ = MagicMock(return_value=False)
-        post_client.post.return_value = post_resp
-
-        clients = iter([files_client, post_client])
-
-        with patch.object(relay_mcp, "_get_client", side_effect=lambda: next(clients)):
-            result_raw = relay_mcp.upsert_file(SHARE_ID, FILE_PATH, CONTENT)
-
-        result = json.loads(result_raw)
-        assert result["operation"] == "created"
+        client = MagicMock()
+        with patch.object(relay_mcp, "_get_client", return_value=client) as get_client:
+            with pytest.raises(ValueError, match="upsert_file"):
+                relay_mcp.upsert_file(SHARE_ID, FILE_PATH, CONTENT)
+        get_client.assert_not_called()
