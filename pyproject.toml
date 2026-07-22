@@ -1,6 +1,6 @@
 [project]
 name = "evc-team-relay-mcp"
-version = "1.0.5"
+version = "1.0.6"
 description = "MCP server for reading and writing Obsidian vault documents via EVC Team Relay"
 readme = "README.md"
 requires-python = ">=3.10"
