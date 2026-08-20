@@ -10,7 +10,7 @@ Thanks for using the EVC Team Relay MCP server. This page is the whole map: wher
 | A feature idea | [Open an issue](https://github.com/entire-vc/evc-team-relay-mcp/issues/new/choose) | 2 business days |
 | A setup or usage question | [Open an issue](https://github.com/entire-vc/evc-team-relay-mcp/issues/new/choose), or email <support@entire.vc> | 2 business days |
 | Anything about your account, your data, or a problem you would rather not describe in public | Email <support@entire.vc> | 2 business days |
-| A security vulnerability | **Not a public issue.** [Report it privately](https://github.com/entire-vc/evc-team-relay-mcp/security/advisories/new) | 48 hours |
+| A security vulnerability | **Not a public issue.** Email <support@entire.vc> with `SECURITY` in the subject | 48 hours |
 
 Public issues are the fastest route for anything that is not private — other people hit the same
 problems, and a fix in the open helps them too.
