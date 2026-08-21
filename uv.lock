@@ -220,7 +220,7 @@ wheels = [
 
 [[package]]
 name = "evc-team-relay-mcp"
-version = "1.0.7"
+version = "1.0.8"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
