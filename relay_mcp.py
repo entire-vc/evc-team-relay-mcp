@@ -257,6 +257,19 @@ def list_shares(kind: str = "", owned_only: bool = False) -> str:
     In multi-key mode (RELAY_AGENT_KEYS set): returns metadata for every share
     that has a configured key, fetched via per-share agent-key auth.
 
+    RELAY_AGENT_KEYS is keyed by share UUID in every real fleet config, but
+    the bare share-metadata endpoint (/v1/web/shares/{ref}) only resolves web
+    slugs — a UUID always 404s there. When that happens this falls back to
+    the UUID-addressable files-index endpoint, which proves the share is
+    real and reachable but can't report kind/path/visibility (reported as
+    kind="unknown", plus a file_count instead).
+
+    A per-share failure (bad key, wrong share, share genuinely gone) is
+    NEVER silently dropped — it lands in the response's `errors` field.
+    "Couldn't check this share" and "checked, it doesn't exist" must stay
+    distinguishable; collapsing both into an empty list is what let a
+    config/auth problem read as "you have no shares".
+
     In single-key mode (RELAY_AGENT_KEY only): returns an empty list — the
     single key is tied to one share but its identity is unknown; call list_files
     or tr_search directly with the known share_id.
@@ -268,7 +281,12 @@ def list_shares(kind: str = "", owned_only: bool = False) -> str:
         owned_only: If true, only return shares owned by the user (email/password mode only).
 
     Returns:
-        JSON array of shares with id, kind, path, visibility, user_role.
+        On full success: a bare JSON array of shares (id, kind, path,
+        visibility, user_role — or id/kind="unknown"/file_count for
+        UUID-resolved entries).
+        If any share failed to resolve: a JSON object
+        {"shares": [...], "errors": {share_ref: "reason"}} instead of a
+        silently-shortened array.
     """
     import json
 
@@ -276,6 +294,8 @@ def list_shares(kind: str = "", owned_only: bool = False) -> str:
 
     if multi_keys:
         shares: list[Any] = []
+        errors: dict[str, str] = {}
+
         for share_ref, key in multi_keys.items():
             try:
                 with _get_client() as client:
@@ -283,12 +303,49 @@ def list_shares(kind: str = "", owned_only: bool = False) -> str:
                         f"{_get_base_url()}/v1/web/shares/{share_ref}",
                         headers=_agent_headers(key),
                     )
-                    if r.status_code == 200:
-                        data = r.json()
-                        if not kind or data.get("kind") == kind:
-                            shares.append(data)
-            except Exception:
-                pass
+            except Exception as e:
+                errors[share_ref] = f"{type(e).__name__}: {e}"
+                continue
+
+            if r.status_code == 200:
+                data = r.json()
+                if not kind or data.get("kind") == kind:
+                    shares.append(data)
+                continue
+
+            if r.status_code != 404:
+                errors[share_ref] = f"HTTP {r.status_code}: {r.text[:200]}"
+                continue
+
+            # Bare endpoint only resolves slugs; share_ref is a UUID in every
+            # real config. Fall back to the UUID-addressable files-index
+            # endpoint before concluding the share is really gone.
+            try:
+                with _get_client() as client:
+                    r2 = client.get(
+                        f"{_get_base_url()}/v1/web/shares/{share_ref}/files-index",
+                        headers=_agent_headers(key),
+                    )
+            except Exception as e:
+                errors[share_ref] = f"{type(e).__name__}: {e}"
+                continue
+
+            if r2.status_code == 200:
+                if not kind:
+                    data2 = r2.json()
+                    shares.append(
+                        {
+                            "id": share_ref,
+                            "kind": "unknown",
+                            "file_count": len(data2.get("files", {})),
+                        }
+                    )
+                continue
+
+            errors[share_ref] = f"HTTP {r2.status_code}: {r2.text[:200]}"
+
+        if errors:
+            return json.dumps({"shares": shares, "errors": errors})
         return json.dumps(shares)
 
     if _get_agent_key():
