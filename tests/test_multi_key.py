@@ -213,7 +213,7 @@ class TestListSharesMultiKey:
         assert len(result) == 1
         assert result[0]["kind"] == "folder"
 
-    def test_skips_failed_share_fetch(self, monkeypatch):
+    def test_failed_share_fetch_reported_as_error_not_silently_dropped(self, monkeypatch):
         import relay_mcp
         monkeypatch.setenv("RELAY_AGENT_KEYS", MULTI_KEYS_ENV)
 
@@ -224,8 +224,70 @@ class TestListSharesMultiKey:
         with patch.object(relay_mcp, "_get_client", side_effect=lambda: next(clients)):
             result = json.loads(relay_mcp.list_shares())
 
-        assert len(result) == 1
-        assert result[0]["id"] == "s"
+        # A real failure must change the response SHAPE (object with
+        # errors), never just quietly shrink the array — otherwise "one
+        # share is broken" and "you only have one share" look identical.
+        assert "errors" in result
+        assert SHARE_MESH in result["errors"]
+        assert "403" in result["errors"][SHARE_MESH]
+        assert len(result["shares"]) == 1
+        assert result["shares"][0]["id"] == "s"
+
+    def test_uuid_share_ref_falls_back_to_files_index_on_404(self, monkeypatch):
+        """RELAY_AGENT_KEYS is keyed by UUID in every real config, and the
+        bare metadata endpoint only resolves slugs — every real share used
+        to 404 there and vanish silently. This is the fix: a 404 on the bare
+        endpoint falls back to the files-index endpoint, which DOES accept
+        a UUID and proves the share is real."""
+        import relay_mcp
+        uuid_ref = "5ba2a6c4-3b9b-485b-b0e4-b8b8691dc49a"
+        monkeypatch.setenv("RELAY_AGENT_KEYS", f"{uuid_ref}:{KEY_MESH}")
+
+        bare_404 = _mock_response(404, {"error": {"message": "Share not found or not published"}})
+        files_index_200 = _mock_response(200, {"share_id": uuid_ref, "files": {"a.md": {}, "b.md": {}}})
+        client = _mock_client()
+        client.get.side_effect = [bare_404, files_index_200]
+
+        with patch.object(relay_mcp, "_get_client", return_value=client):
+            result = json.loads(relay_mcp.list_shares())
+
+        assert result == [{"id": uuid_ref, "kind": "unknown", "file_count": 2}]
+        # second call must hit the files-index endpoint with the same key
+        second_call_url = client.get.call_args_list[1][0][0]
+        assert second_call_url.endswith(f"/v1/web/shares/{uuid_ref}/files-index")
+        assert client.get.call_args_list[1][1]["headers"] == {"X-Agent-Key": KEY_MESH}
+
+    def test_uuid_share_ref_genuinely_gone_reports_error(self, monkeypatch):
+        """404 on both the bare endpoint AND the files-index fallback means
+        the share is actually gone — must surface as an error, not silently
+        vanish from the list."""
+        import relay_mcp
+        uuid_ref = "00000000-0000-0000-0000-000000000000"
+        monkeypatch.setenv("RELAY_AGENT_KEYS", f"{uuid_ref}:{KEY_MESH}")
+
+        bare_404 = _mock_response(404, {"error": {"message": "Share not found or not published"}})
+        files_index_404 = _mock_response(404, {"error": {"message": "Share not found"}})
+        client = _mock_client()
+        client.get.side_effect = [bare_404, files_index_404]
+
+        with patch.object(relay_mcp, "_get_client", return_value=client):
+            result = json.loads(relay_mcp.list_shares())
+
+        assert result["shares"] == []
+        assert "404" in result["errors"][uuid_ref]
+
+    def test_bad_key_reports_401_as_error(self, monkeypatch):
+        import relay_mcp
+        monkeypatch.setenv("RELAY_AGENT_KEYS", MULTI_KEYS_ENV)
+
+        client = _mock_client(get_resp=_mock_response(401, {"error": {"message": "Invalid agent key"}}))
+
+        with patch.object(relay_mcp, "_get_client", return_value=client):
+            result = json.loads(relay_mcp.list_shares())
+
+        assert len(result["errors"]) == 2
+        for msg in result["errors"].values():
+            assert "401" in msg
 
     def test_single_key_mode_returns_empty_list(self, monkeypatch):
         import relay_mcp
