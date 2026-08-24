@@ -24,7 +24,7 @@ dependencies = [
     # after that date silently resolves a 2.x that cannot start
     # (ModuleNotFoundError). Ceiling it to the 1.x line; migrating to the 2.x
     # API is a separate, deliberately-scoped task (#6ad5f88c).
-    "mcp[cli]>=1.0.0,<2",
+    "mcp[cli]>=1.0.0,<3",
     "httpx>=0.27.0",
 ]
 
