@@ -303,7 +303,7 @@ The MCP server wraps Team Relay's REST API into standard MCP tools. Team Relay s
 | Product | What it does | Link |
 |---------|-------------|------|
 | **Team Relay** | Self-hosted collaboration server | [repo](https://github.com/entire-vc/evc-team-relay) |
-| **Team Relay Plugin** | Obsidian plugin for Team Relay | [repo](https://github.com/entire-vc/evc-team-relay-obsidian-plugin) |
+| **Team Relay Plugin** | Obsidian plugin for Team Relay | [repo](https://github.com/entire-vc/evc-team-relay-plugin) |
 | **Relay MCP** | MCP server for AI agents | this repo |
 | **OpenClaw Skill** | OpenClaw agent skill (bash) | [repo](https://github.com/entire-vc/evc-team-relay-openclaw-skill) |
 | **Local Sync** | Vault <-> AI dev tools sync | [repo](https://github.com/entire-vc/evc-local-sync-plugin) |

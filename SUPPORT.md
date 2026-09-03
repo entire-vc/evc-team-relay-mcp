@@ -45,7 +45,7 @@ the thread than go quiet.
 This repository holds the MCP server that exposes Team Relay to agent tooling. Some things live
 elsewhere:
 
-- **The Obsidian plugin** — [evc-team-relay-obsidian-plugin](https://github.com/entire-vc/evc-team-relay-obsidian-plugin).
+- **The Obsidian plugin** — [evc-team-relay-plugin](https://github.com/entire-vc/evc-team-relay-plugin).
 - **The relay server (the Rust sync core)** — [evc-relay-server](https://github.com/entire-vc/evc-relay-server).
 - **The hosted control plane and accounts** — [evc-team-relay](https://github.com/entire-vc/evc-team-relay),
   or email <support@entire.vc>.
