@@ -1,0 +1,83 @@
+{
+  "manifest_version": "0.3",
+  "name": "evc-team-relay-mcp",
+  "display_name": "EVC Team Relay",
+  "version": "0.0.0-unbuilt",
+  "description": "MCP server for reading and writing Obsidian vault documents via EVC Team Relay",
+  "author": {
+    "name": "Entire VC",
+    "email": "in@entire.vc",
+    "url": "https://entire.vc/team-relay/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/entire-vc/evc-team-relay-mcp"
+  },
+  "homepage": "https://entire.vc/team-relay/",
+  "support": "https://github.com/entire-vc/evc-team-relay-mcp/issues",
+  "license": "MIT",
+  "keywords": [
+    "obsidian",
+    "team-relay",
+    "notes",
+    "vault",
+    "collaboration",
+    "sync",
+    "markdown"
+  ],
+  "server": {
+    "type": "python",
+    "entry_point": "relay_mcp.py",
+    "mcp_config": {
+      "command": "uvx",
+      "args": [
+        "evc-team-relay-mcp==0.0.0-unbuilt"
+      ],
+      "env": {
+        "RELAY_CP_URL": "${user_config.relay_cp_url}",
+        "RELAY_AGENT_KEY": "${user_config.relay_agent_key}",
+        "RELAY_EMAIL": "${user_config.relay_email}",
+        "RELAY_PASSWORD": "${user_config.relay_password}"
+      }
+    }
+  },
+  "user_config": {
+    "relay_cp_url": {
+      "type": "string",
+      "title": "Control plane URL",
+      "description": "Team Relay control plane, e.g. https://cp.tr.entire.vc for the hosted service or your own self-hosted URL.",
+      "required": true,
+      "default": "https://cp.tr.entire.vc"
+    },
+    "relay_agent_key": {
+      "type": "string",
+      "title": "Agent key",
+      "description": "Per-share agent key (recommended; required for writes). Create it in Team Relay under Shares, Agent keys.",
+      "sensitive": true,
+      "required": false
+    },
+    "relay_email": {
+      "type": "string",
+      "title": "Email (read-only fallback)",
+      "description": "Account email, used only when no agent key is set.",
+      "required": false
+    },
+    "relay_password": {
+      "type": "string",
+      "title": "Password (read-only fallback)",
+      "description": "Account password, used only when no agent key is set.",
+      "sensitive": true,
+      "required": false
+    }
+  },
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

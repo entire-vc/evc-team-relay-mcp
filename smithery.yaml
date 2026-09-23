@@ -2,8 +2,15 @@
 #
 # evc-team-relay-mcp is a stdio Python MCP server published to PyPI.
 # Tools (9) and their JSON schemas are introspected by Smithery at runtime
-# from the live server — see relay_mcp.py for the canonical definitions.
+# from the live server — see relay_mcp.py for the canonical tool definitions.
 # Server metadata (name, description, version, package) lives in server.json.
+#
+# Source of truth for the MCPB bundle (used by Smithery's own MCPB ingestion
+# and the official MCP Registry's mcpb package type) is
+# packaging/mcpb/manifest.json + packaging/mcpb/build_mcpb.py — NOT a
+# checked-in .mcpb file. The build script regenerates each tool's
+# inputSchema/annotations from the live server so they can't drift; see that
+# script's docstring for why it doesn't shell out to `mcpb pack`.
 #
 # Auth: RELAY_AGENT_KEY (preferred for agents) or RELAY_EMAIL+RELAY_PASSWORD (fallback).
 
