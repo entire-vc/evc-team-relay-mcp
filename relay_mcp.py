@@ -20,6 +20,7 @@ from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 # ── Server setup ─────────────────────────────────────────────
 mcp = FastMCP(
@@ -35,9 +36,22 @@ mcp = FastMCP(
         "live content (`read_document`/`write_document`) and per-file delete "
         "(`delete_file`) have no backend route in ANY auth mode yet — a "
         "genuine backend gap, unrelated to the agent-key/JWT split. All of "
-        "these raise a clear error rather than silently failing; see TR-05 "
-        "(#0cdd5328) follow-up (#0a74769a)."
+        "these raise a clear error rather than silently failing."
     ),
+)
+
+# Reused across the read-only tools below — one definition, one place to change.
+_READ_ONLY = ToolAnnotations(
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=True,
+)
+_WRITE = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=True,
+    idempotentHint=True,
+    openWorldHint=True,
 )
 
 # ── Internal state ───────────────────────────────────────────
@@ -205,12 +219,9 @@ def _jwt_list_files(share_id: str) -> dict[str, dict]:
 _NO_BACKEND_ROUTE = (
     "{tool} is not available: the control-plane has no REST route for this "
     "operation in ANY auth mode (agent-key or JWT) — a genuine backend gap, "
-    "not an agent-key-vs-JWT restriction. relay_mcp.py was originally written "
-    "against a /v1/documents/* API that was never implemented server-side "
-    "(confirmed absent across the full git history of evc-team-relay-cp). "
-    "Were a route ever added, per the sanctioned write policy it would be "
-    "agent-key-only — JWT/email-password mode stays read-only by design "
-    "either way. See Mesh task TR-05 (#0cdd5328) follow-up (#0a74769a)."
+    "not an agent-key-vs-JWT restriction. Were a route ever added, per the "
+    "sanctioned write policy it would be agent-key-only — JWT/email-password "
+    "mode stays read-only by design either way."
 )
 
 _JWT_WRITE_NOT_SANCTIONED = (
@@ -218,23 +229,26 @@ _JWT_WRITE_NOT_SANCTIONED = (
     "temporary gap. Write access to Team Relay is sanctioned only via "
     "agent-key auth (RELAY_AGENT_KEY / RELAY_AGENT_KEYS); JWT mode is "
     "intentionally read-only (list_files/read_file/tr_search all work fine "
-    "there). Configure an agent key instead. See Mesh task TR-05 (#0cdd5328) "
-    "follow-up (#0a74769a)."
+    "there). Configure an agent key instead."
 )
 
 
 # ── MCP Tools ────────────────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def authenticate() -> str:
-    """Authenticate with the Relay Control Plane.
+    """Check which auth mode is active (agent key or email/password) and log in if needed.
 
-    In agent-key mode (RELAY_AGENT_KEY is set): no login is needed —
-    each request carries X-Agent-Key directly.
+    Takes no arguments; call it first, once, before any other tool.
 
-    In email/password mode: uses RELAY_EMAIL and RELAY_PASSWORD env vars.
-    The token is managed internally; subsequent tool calls use it automatically.
+    In agent-key mode (RELAY_AGENT_KEY or RELAY_AGENT_KEYS is set): no login
+    is needed — each request carries X-Agent-Key directly, this just reports
+    which mode is active.
+
+    In email/password mode: logs in with the RELAY_EMAIL and RELAY_PASSWORD
+    env vars. The resulting token is managed internally; subsequent tool
+    calls use it automatically — you never need to pass it yourself.
     """
     if _is_agent_key_mode():
         multi = _parse_agent_keys()
@@ -250,18 +264,21 @@ def authenticate() -> str:
     return f"Authenticated successfully. Token length: {len(token)}"
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def list_shares(kind: str = "", owned_only: bool = False) -> str:
-    """List all accessible shares.
+    """List the shared folders and documents this key or account can access.
+
+    Only lists what auth mode/key was granted — it does not create or change
+    access. Example: `list_shares(kind="folder")`.
 
     In multi-key mode (RELAY_AGENT_KEYS set): returns metadata for every share
     that has a configured key, fetched via per-share agent-key auth.
 
-    RELAY_AGENT_KEYS is keyed by share UUID in every real fleet config, but
-    the bare share-metadata endpoint (/v1/web/shares/{ref}) only resolves web
-    slugs — a UUID always 404s there. When that happens this falls back to
-    the UUID-addressable files-index endpoint, which proves the share is
-    real and reachable but can't report kind/path/visibility (reported as
+    RELAY_AGENT_KEYS is typically keyed by share UUID, but the bare
+    share-metadata endpoint (/v1/web/shares/{ref}) only resolves web slugs —
+    a UUID always 404s there. When that happens this falls back to the
+    UUID-addressable files-index endpoint, which proves the share is real
+    and reachable but can't report kind/path/visibility (reported as
     kind="unknown", plus a file_count instead).
 
     A per-share failure (bad key, wrong share, share genuinely gone) is
@@ -367,9 +384,11 @@ def list_shares(kind: str = "", owned_only: bool = False) -> str:
     return r.text
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def list_files(share_id: str) -> str:
-    """List files in a folder share.
+    """List every file in a shared folder with its metadata.
+
+    Read-only; does not download file contents (use read_file for that).
 
     In agent-key mode (RELAY_AGENT_KEYS or RELAY_AGENT_KEY is set): uses the
     agent-key endpoint; share_id may be a UUID or web slug.
@@ -377,7 +396,8 @@ def list_files(share_id: str) -> str:
     In email/password mode: share_id must be a UUID.
 
     Args:
-        share_id: UUID or web slug of the folder share.
+        share_id: UUID or web slug of the folder share, e.g.
+            "a1b2c3d4-..." or "research-vault".
 
     Returns:
         JSON with share_id and files map (path -> metadata).
@@ -398,9 +418,12 @@ def list_files(share_id: str) -> str:
     return json.dumps({"share_id": share_id, "files": files})
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def tr_search(share_id: str, query: str, limit: int = 20) -> str:
-    """Search TR docs by path/name within a folder share.
+    """Find files in a shared folder by a case-insensitive match on path or name.
+
+    Read-only; does not download file contents (use read_file for that).
+    Example: `tr_search(share_id="research-vault", query="roadmap")`.
 
     In agent-key mode (RELAY_AGENT_KEY is set): share_id may be UUID or web slug.
     In email/password mode: share_id must be a UUID.
@@ -475,9 +498,12 @@ def tr_search(share_id: str, query: str, limit: int = 20) -> str:
     return json.dumps(matches[:limit])
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def read_file(share_id: str, file_path: str) -> str:
-    """Read a file from a folder share by its path.
+    """Read one file from a shared folder by its path.
+
+    Read-only. Returns the full file content in one response — there is no
+    partial/range read.
 
     In agent-key mode (RELAY_AGENT_KEY is set): fetches via the agent-key
     download endpoint; share_id may be a UUID or web slug.
@@ -524,16 +550,16 @@ def read_file(share_id: str, file_path: str) -> str:
     return json.dumps({"path": file_path, "content": r.text, "format": fmt})
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def read_document(share_id: str, doc_id: str = "", key: str = "contents") -> str:
-    """NOT IMPLEMENTED — no backend route in any auth mode, always raises.
+    """Reserved for live document content; not yet available on the server, use read_file.
 
-    The control-plane has no REST route for reading a document's live content
-    by ID for either DOC-kind shares or a folder-share file's doc_id (that
-    concept doesn't exist in the current CAS-based folder sync model). This
-    is a genuine backend gap, not an agent-key-vs-JWT restriction. Use
-    read_file for folder shares (works in both agent-key and JWT mode). See
-    TR-05 follow-up.
+    Always raises: the control-plane has no REST route for reading a
+    document's live content by ID for either DOC-kind shares or a
+    folder-share file's doc_id (that concept doesn't exist in the current
+    CAS-based folder sync model). This is a genuine backend gap, not an
+    agent-key-vs-JWT restriction. Use read_file for folder shares instead —
+    it works in both agent-key and JWT mode.
 
     Args:
         share_id: UUID of the share (for ACL check).
@@ -545,14 +571,13 @@ def read_document(share_id: str, doc_id: str = "", key: str = "contents") -> str
     raise ValueError(_NO_BACKEND_ROUTE.format(tool="read_document"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=_WRITE)
 def upsert_file(share_id: str, file_path: str, content: str) -> str:
-    """Create or update a file in a folder share.
+    """Create or overwrite a file in a shared folder; it syncs into subscribers' vaults. Agent key only.
 
     **Write access is agent-key-only by design** — this is the sanctioned,
     permanent policy (not a temporary gap): agent-key mode is the only
-    authorized write path in this MCP server. See TR-05 (#0cdd5328) follow-up
-    (#0a74769a) for the decision.
+    authorized write path in this MCP server.
 
     **Agent key mode** (RELAY_AGENT_KEY is set):
     - share_id may be the share UUID or web slug (e.g. "research-vault")
@@ -598,7 +623,7 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
         return json.dumps(result)
 
     # Email/password (JWT) mode: writes are deliberately unsupported — agent-key
-    # mode is the sole sanctioned write path (see TR-05 follow-up #0a74769a).
+    # mode is the sole sanctioned write path.
     # Note: even /v1/web/shares/{slug}/files (JWT-capable) is not a safe substitute —
     # it writes items without source=sync-artifact, which the files-index read path
     # (both agent-key and JWT) filters out, so the write would silently vanish from
@@ -606,18 +631,18 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
     raise ValueError(_JWT_WRITE_NOT_SANCTIONED.format(tool="upsert_file"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=_WRITE)
 def write_document(
     share_id: str, doc_id: str, content: str, key: str = "contents"
 ) -> str:
-    """NOT IMPLEMENTED — no backend route in any auth mode, always raises.
+    """Reserved for live document writes; not yet available on the server, use upsert_file.
 
-    The control-plane has no REST route for writing a document's live content
-    by ID (doc-share content is CRDT/WebSocket-only). This is a genuine
-    backend gap in BOTH agent-key and JWT mode, not an agent-key-vs-JWT
-    restriction — but were a route ever added, per the sanctioned write
-    policy (agent-key writes only) JWT mode would still be read-only. See
-    TR-05 follow-up.
+    Always raises: the control-plane has no REST route for writing a
+    document's live content by ID (doc-share content is CRDT/WebSocket-only).
+    This is a genuine backend gap in BOTH agent-key and JWT mode, not an
+    agent-key-vs-JWT restriction — but were a route ever added, per the
+    sanctioned write policy (agent-key writes only) JWT mode would still be
+    read-only.
 
     Args:
         share_id: UUID of the share (for ACL check).
@@ -628,16 +653,16 @@ def write_document(
     raise ValueError(_NO_BACKEND_ROUTE.format(tool="write_document"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=_WRITE)
 def delete_file(share_id: str, file_path: str) -> str:
-    """NOT IMPLEMENTED — no backend route in any auth mode, always raises.
+    """Reserved for per-file deletion; not yet available on the server.
 
-    The control-plane has no DELETE route for an individual folder-share file
-    in ANY auth mode (agent-key or JWT) — this isn't a JWT-vs-agent-key gap,
-    per-file deletion simply isn't implemented server-side yet. Note this is
-    independent of the agent-key-only write policy that governs upsert_file:
-    even once/if a delete route lands, it would follow that same policy
-    (agent-key-only, JWT read-only). See TR-05.
+    Always raises: the control-plane has no DELETE route for an individual
+    folder-share file in ANY auth mode (agent-key or JWT) — this isn't a
+    JWT-vs-agent-key gap, per-file deletion simply isn't implemented
+    server-side yet. Note this is independent of the agent-key-only write
+    policy that governs upsert_file: even once/if a delete route lands, it
+    would follow that same policy (agent-key-only, JWT read-only).
 
     Args:
         share_id: UUID of the folder share.
