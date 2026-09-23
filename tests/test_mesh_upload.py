@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -142,9 +141,7 @@ class TestUpsertFileAgentKey:
         clients = iter([kind_client, upload_client])
 
         with patch.object(relay_mcp, "_get_client", side_effect=lambda: next(clients)):
-            result_raw = relay_mcp.upsert_file(SHARE_ID, FILE_PATH, CONTENT)
-
-        result = json.loads(result_raw)
+            result = relay_mcp.upsert_file(SHARE_ID, FILE_PATH, CONTENT)
         assert result["operation"] == "uploaded"
 
         upload_client.post.assert_called_once()
@@ -170,9 +167,7 @@ class TestUpsertFileAgentKey:
         clients = iter([kind_client, upload_client])
 
         with patch.object(relay_mcp, "_get_client", side_effect=lambda: next(clients)):
-            result_raw = relay_mcp.upsert_file(SHARE_ID, FILE_PATH, CONTENT)
-
-        result = json.loads(result_raw)
+            result = relay_mcp.upsert_file(SHARE_ID, FILE_PATH, CONTENT)
         assert result["operation"] == "uploaded"
 
         upload_client.post.assert_called_once()
@@ -200,9 +195,7 @@ class TestUpsertFileAgentKey:
         clients = iter([kind_client, upload_client])
 
         with patch.object(relay_mcp, "_get_client", side_effect=lambda: next(clients)):
-            result_raw = relay_mcp.upsert_file(SHARE_ID, FILE_PATH, CONTENT)
-
-        result = json.loads(result_raw)
+            result = relay_mcp.upsert_file(SHARE_ID, FILE_PATH, CONTENT)
         assert result["operation"] == "uploaded"
 
         upload_client.post.assert_called_once()

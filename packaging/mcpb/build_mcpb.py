@@ -59,6 +59,8 @@ def _tool_entries() -> list[dict]:
             "description": t.description,
             "inputSchema": t.inputSchema,
         }
+        if t.outputSchema:
+            entry["outputSchema"] = t.outputSchema
         if t.annotations:
             entry["annotations"] = t.annotations.model_dump(exclude_none=True)
         entries.append(entry)

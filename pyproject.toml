@@ -1,6 +1,6 @@
 [project]
 name = "evc-team-relay-mcp"
-version = "1.0.8"
+version = "1.0.9"
 description = "MCP server for reading and writing Obsidian vault documents via EVC Team Relay"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,7 +30,12 @@ dependencies = [
     # 1.0.0-1.9.4 wheels: mcp.server.fastmcp itself doesn't even exist until
     # 1.2.0). A resolver that picked 1.0.0-1.6.x under the old floor would
     # crash at import time on every tool, not just the annotated ones.
-    "mcp[cli]>=1.7.0,<2",
+    # Floor raised again to 1.10.0: FastMCP's `outputSchema` auto-generation
+    # (structured_output / FuncMetadata.output_schema) does not exist before
+    # 1.10.0 — confirmed by downloading the published 1.7.0-1.10.1 wheels and
+    # grepping func_metadata.py: absent through 1.9.4, present from 1.10.0.
+    # relay_mcp.py's dict[str, Any]-returning tools rely on it for outputSchema.
+    "mcp[cli]>=1.10.0,<2",
     "httpx>=0.27.0",
 ]
 
