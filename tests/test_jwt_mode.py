@@ -85,7 +85,7 @@ class TestListFilesJwtMode:
 
         client = _mock_client(get_resp=_mock_response(200, SYNC_ARTIFACTS))
         with patch.object(relay_mcp, "_get_client", return_value=client):
-            result = json.loads(relay_mcp.list_files(SHARE_ID))
+            result = relay_mcp.list_files(SHARE_ID)
 
         assert result["share_id"] == SHARE_ID
         assert FILE_PATH in result["files"]
@@ -132,7 +132,7 @@ class TestReadFileJwtMode:
 
         client = _mock_client(get_resp=download_resp)
         with patch.object(relay_mcp, "_get_client", return_value=client):
-            result = json.loads(relay_mcp.read_file(SHARE_ID, FILE_PATH))
+            result = relay_mcp.read_file(SHARE_ID, FILE_PATH)
 
         url = client.get.call_args[0][0]
         assert url == f"{BASE_URL}/v1/shares/{SHARE_ID}/download"
@@ -149,7 +149,7 @@ class TestReadFileJwtMode:
         client = _mock_client(get_resp=not_found)
 
         with patch.object(relay_mcp, "_get_client", return_value=client):
-            result = json.loads(relay_mcp.read_file(SHARE_ID, "missing.md"))
+            result = relay_mcp.read_file(SHARE_ID, "missing.md")
 
         assert "error" in result
 

@@ -18,13 +18,12 @@ startCommand:
   type: stdio
   configSchema:
     type: object
-    required:
-      - RELAY_CP_URL
     properties:
       RELAY_CP_URL:
         type: string
         title: Relay Control Plane URL
-        description: URL of the Team Relay control plane (e.g. https://cp.yourdomain.com)
+        description: URL of the Team Relay control plane (e.g. https://cp.yourdomain.com). Defaults to the hosted service.
+        default: https://cp.tr.entire.vc
       RELAY_AGENT_KEY:
         type: string
         title: Agent Key
@@ -42,7 +41,7 @@ startCommand:
   commandFunction:
     |-
     (config) => {
-      const env = { RELAY_CP_URL: config.RELAY_CP_URL };
+      const env = { RELAY_CP_URL: config.RELAY_CP_URL || 'https://cp.tr.entire.vc' };
       if (config.RELAY_AGENT_KEY) env.RELAY_AGENT_KEY = config.RELAY_AGENT_KEY;
       if (config.RELAY_EMAIL) env.RELAY_EMAIL = config.RELAY_EMAIL;
       if (config.RELAY_PASSWORD) env.RELAY_PASSWORD = config.RELAY_PASSWORD;

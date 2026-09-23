@@ -16,11 +16,12 @@ from __future__ import annotations
 import os
 import sys
 import time
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 # ── Server setup ─────────────────────────────────────────────
 mcp = FastMCP(
@@ -168,7 +169,11 @@ def _ensure_token() -> str:
     email = os.environ.get("RELAY_EMAIL", "")
     password = os.environ.get("RELAY_PASSWORD", "")
     if not email or not password:
-        raise ValueError("RELAY_EMAIL and RELAY_PASSWORD must be set")
+        raise ValueError(
+            "No credentials configured. Set RELAY_AGENT_KEY (recommended — create "
+            "one in Team Relay under Shares > Agent keys) for read/write access, "
+            "or RELAY_EMAIL and RELAY_PASSWORD for read-only access."
+        )
 
     with _get_client() as client:
         r = client.post(
@@ -265,7 +270,18 @@ def authenticate() -> str:
 
 
 @mcp.tool(annotations=_READ_ONLY)
-def list_shares(kind: str = "", owned_only: bool = False) -> str:
+def list_shares(
+    kind: Annotated[
+        str, Field(description='Filter by share kind: "doc" or "folder". Empty string returns all kinds.')
+    ] = "",
+    owned_only: Annotated[
+        bool,
+        Field(
+            description="Only return shares owned by the authenticated user. "
+            "Email/password mode only; ignored in agent-key mode."
+        ),
+    ] = False,
+) -> str:
     """List the shared folders and documents this key or account can access.
 
     Only lists what auth mode/key was granted — it does not create or change
@@ -385,7 +401,12 @@ def list_shares(kind: str = "", owned_only: bool = False) -> str:
 
 
 @mcp.tool(annotations=_READ_ONLY)
-def list_files(share_id: str) -> str:
+def list_files(
+    share_id: Annotated[
+        str,
+        Field(description="UUID or web slug of the folder share, as returned by list_shares."),
+    ],
+) -> dict[str, Any]:
     """List every file in a shared folder with its metadata.
 
     Read-only; does not download file contents (use read_file for that).
@@ -400,10 +421,10 @@ def list_files(share_id: str) -> str:
             "a1b2c3d4-..." or "research-vault".
 
     Returns:
-        JSON with share_id and files map (path -> metadata).
+        Object with share_id and files map (path -> metadata). The exact set
+        of metadata keys per file is server-controlled, hence the loose
+        dict[str, Any] shape rather than a strict per-field schema.
     """
-    import json
-
     agent_key = _get_key_for_share(share_id)
     if agent_key:
         with _get_client() as client:
@@ -412,14 +433,21 @@ def list_files(share_id: str) -> str:
                 headers=_agent_headers(agent_key),
             )
             r.raise_for_status()
-        return r.text
+        return r.json()
 
     files = _jwt_list_files(share_id)
-    return json.dumps({"share_id": share_id, "files": files})
+    return {"share_id": share_id, "files": files}
 
 
 @mcp.tool(annotations=_READ_ONLY)
-def tr_search(share_id: str, query: str, limit: int = 20) -> str:
+def tr_search(
+    share_id: Annotated[
+        str,
+        Field(description="UUID or web slug of the folder share, as returned by list_shares."),
+    ],
+    query: Annotated[str, Field(description="Case-insensitive substring matched against file paths.")],
+    limit: Annotated[int, Field(description="Maximum number of matches to return.")] = 20,
+) -> str:
     """Find files in a shared folder by a case-insensitive match on path or name.
 
     Read-only; does not download file contents (use read_file for that).
@@ -499,7 +527,15 @@ def tr_search(share_id: str, query: str, limit: int = 20) -> str:
 
 
 @mcp.tool(annotations=_READ_ONLY)
-def read_file(share_id: str, file_path: str) -> str:
+def read_file(
+    share_id: Annotated[
+        str,
+        Field(description="UUID or web slug of the folder share, as returned by list_shares."),
+    ],
+    file_path: Annotated[
+        str, Field(description='Path to the file within the share, e.g. "notes/todo.md".')
+    ],
+) -> dict[str, Any]:
     """Read one file from a shared folder by its path.
 
     Read-only. Returns the full file content in one response — there is no
@@ -516,10 +552,11 @@ def read_file(share_id: str, file_path: str) -> str:
         file_path: File path within the folder (e.g. "Marketing/plan.md").
 
     Returns:
-        JSON with content, format, and path.
+        {"path", "content", "format"} on success, or {"error": ...} if the
+        file doesn't exist — two distinct shapes on the same 200-equivalent
+        outcome, hence dict[str, Any] rather than a strict per-field schema
+        (a stricter schema would reject the error shape as invalid output).
     """
-    import json
-
     agent_key = _get_key_for_share(share_id)
     if agent_key:
         with _get_client() as client:
@@ -529,11 +566,11 @@ def read_file(share_id: str, file_path: str) -> str:
                 params={"path": file_path},
             )
             if r.status_code == 404:
-                return json.dumps({"error": f"File not found: {file_path}"})
+                return {"error": f"File not found: {file_path}"}
             r.raise_for_status()
         content_type = r.headers.get("content-type", "text/plain")
         fmt = "markdown" if "text/" in content_type else "binary"
-        return json.dumps({"path": file_path, "content": r.text, "format": fmt})
+        return {"path": file_path, "content": r.text, "format": fmt}
 
     # Email/password mode
     with _get_client() as client:
@@ -543,15 +580,21 @@ def read_file(share_id: str, file_path: str) -> str:
             params={"path": file_path},
         )
         if r.status_code == 404:
-            return json.dumps({"error": f"File not found: {file_path}"})
+            return {"error": f"File not found: {file_path}"}
         r.raise_for_status()
     content_type = r.headers.get("content-type", "text/plain")
     fmt = "markdown" if "text/" in content_type else "binary"
-    return json.dumps({"path": file_path, "content": r.text, "format": fmt})
+    return {"path": file_path, "content": r.text, "format": fmt}
 
 
 @mcp.tool(annotations=_READ_ONLY)
-def read_document(share_id: str, doc_id: str = "", key: str = "contents") -> str:
+def read_document(
+    share_id: Annotated[str, Field(description="UUID of the share, used for the access check.")],
+    doc_id: Annotated[
+        str, Field(description="Document UUID. Defaults to share_id when omitted.")
+    ] = "",
+    key: Annotated[str, Field(description="Yjs shared-type key holding the document content.")] = "contents",
+) -> dict[str, Any]:
     """Reserved for live document content; not yet available on the server, use read_file.
 
     Always raises: the control-plane has no REST route for reading a
@@ -572,7 +615,17 @@ def read_document(share_id: str, doc_id: str = "", key: str = "contents") -> str
 
 
 @mcp.tool(annotations=_WRITE)
-def upsert_file(share_id: str, file_path: str, content: str) -> str:
+def upsert_file(
+    share_id: Annotated[
+        str, Field(description="Share UUID (email/password mode) or web slug (agent-key mode).")
+    ],
+    file_path: Annotated[
+        str, Field(description='Path to the file within the share, e.g. "notes/todo.md".')
+    ],
+    content: Annotated[
+        str, Field(description="Full text content to write, replacing the file if it already exists.")
+    ],
+) -> dict[str, Any]:
     """Create or overwrite a file in a shared folder; it syncs into subscribers' vaults. Agent key only.
 
     **Write access is agent-key-only by design** — this is the sanctioned,
@@ -597,10 +650,10 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
         content: Full text content to write.
 
     Returns:
-        JSON with path, size/operation, and optional public_url (agent-key mode).
+        Object with path, size/operation, and optional public_url (agent-key
+        mode). The exact set of keys is server-controlled (plus the
+        "operation" key added here), hence dict[str, Any].
     """
-    import json
-
     agent_key = _get_key_for_share(share_id)
     if agent_key:
         # Route to sync-upload for folder shares (writes into CRDT sync store →
@@ -620,7 +673,7 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
             r.raise_for_status()
             result = r.json()
         result["operation"] = "uploaded"
-        return json.dumps(result)
+        return result
 
     # Email/password (JWT) mode: writes are deliberately unsupported — agent-key
     # mode is the sole sanctioned write path.
@@ -633,8 +686,13 @@ def upsert_file(share_id: str, file_path: str, content: str) -> str:
 
 @mcp.tool(annotations=_WRITE)
 def write_document(
-    share_id: str, doc_id: str, content: str, key: str = "contents"
-) -> str:
+    share_id: Annotated[str, Field(description="UUID of the share, used for the access check.")],
+    doc_id: Annotated[str, Field(description="Document UUID.")],
+    content: Annotated[
+        str, Field(description="Full text content to write, replacing the entire document.")
+    ],
+    key: Annotated[str, Field(description="Yjs shared-type key holding the document content.")] = "contents",
+) -> dict[str, Any]:
     """Reserved for live document writes; not yet available on the server, use upsert_file.
 
     Always raises: the control-plane has no REST route for writing a
@@ -654,7 +712,12 @@ def write_document(
 
 
 @mcp.tool(annotations=_WRITE)
-def delete_file(share_id: str, file_path: str) -> str:
+def delete_file(
+    share_id: Annotated[str, Field(description="UUID of the folder share.")],
+    file_path: Annotated[
+        str, Field(description='Path to the file within the folder, e.g. "old-note.md".')
+    ],
+) -> dict[str, Any]:
     """Reserved for per-file deletion; not yet available on the server.
 
     Always raises: the control-plane has no DELETE route for an individual

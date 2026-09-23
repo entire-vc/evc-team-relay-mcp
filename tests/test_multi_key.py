@@ -340,7 +340,7 @@ class TestReadFileMultiKey:
         client = _mock_client(get_resp=download_resp)
 
         with patch.object(relay_mcp, "_get_client", return_value=client):
-            result = json.loads(relay_mcp.read_file(SHARE_SPARK, "notes/file.md"))
+            result = relay_mcp.read_file(SHARE_SPARK, "notes/file.md")
 
         assert result["content"] == "# Hello"
         assert client.get.call_args[1]["headers"] == {"X-Agent-Key": KEY_SPARK}

@@ -4,6 +4,7 @@
 [![Docker Hub](https://img.shields.io/docker/v/deadalusevc/evc-team-relay-mcp?label=docker)](https://hub.docker.com/r/deadalusevc/evc-team-relay-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-server-4A90D9)](https://modelcontextprotocol.io)
+[![Smithery](https://img.shields.io/badge/Smithery-listed-6f42c1)](https://smithery.ai/servers/entirevc/evc-team-relay-mcp)
 [![Install via Spark](https://spark.entire.vc/badges/evc-team-relay-mcp/install.svg)](https://spark.entire.vc/assets/evc-team-relay-mcp?utm_source=github&utm_medium=readme)
 
 **Give your AI agent read/write access to your Obsidian vault.**

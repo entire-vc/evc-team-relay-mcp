@@ -220,7 +220,7 @@ wheels = [
 
 [[package]]
 name = "evc-team-relay-mcp"
-version = "1.0.8"
+version = "1.0.9"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -235,7 +235,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.0.0,<2" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.10.0,<2" },
 ]
 
 [package.metadata.requires-dev]
