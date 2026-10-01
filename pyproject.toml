@@ -37,6 +37,9 @@ dependencies = [
     # relay_mcp.py's dict[str, Any]-returning tools rely on it for outputSchema.
     "mcp[cli]>=1.10.0,<2",
     "httpx>=0.27.0",
+    # Transitive via mcp; floor set so non-lock installs also get the fixes
+    # for GHSA-9j54-fg26-wv3r, GHSA-r6x4-923q-g947, GHSA-w2cx-738m-mc7w.
+    "pyjwt>=2.14.0",
 ]
 
 [project.urls]
