@@ -185,7 +185,7 @@ Not every tool works in every auth mode, and one group doesn't work in
 | **No backend route in either mode** | `read_document`, `write_document`, `delete_file` | Always raise `ValueError` — not an auth restriction |
 
 - **Write access is agent-key-only, by sanctioned policy** (see
-  [TR-05 (#0cdd5328)](https://mesh.entire.host/t/0cdd5328-e65c-4670-81ca-3da203979eaa)):
+  TR-05 (internal implementation record)):
   `upsert_file` is the only write tool with a working backend route, and it
   only writes when an agent key (`RELAY_AGENT_KEY` / `RELAY_AGENT_KEYS`) is
   configured. JWT mode calling `upsert_file` raises a clear `ValueError`
@@ -304,7 +304,7 @@ The MCP server wraps Team Relay's REST API into standard MCP tools. Team Relay s
 | Product | What it does | Link |
 |---------|-------------|------|
 | **Team Relay** | Self-hosted collaboration server | [repo](https://github.com/entire-vc/evc-team-relay) |
-| **Team Relay Plugin** | Obsidian plugin for Team Relay | [repo](https://github.com/entire-vc/evc-team-relay-plugin) |
+| **Team Relay Sync** | Obsidian plugin for Team Relay | [install](https://community.obsidian.md/plugins/team-relay-sync) / [repo](https://github.com/entire-vc/evc-team-relay-obsidian) |
 | **Relay MCP** | MCP server for AI agents | this repo |
 | **OpenClaw Skill** | OpenClaw agent skill (bash) | [repo](https://github.com/entire-vc/evc-team-relay-openclaw-skill) |
 | **Local Sync** | Vault <-> AI dev tools sync | [repo](https://github.com/entire-vc/evc-local-sync-plugin) |
