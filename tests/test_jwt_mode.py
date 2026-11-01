@@ -1,4 +1,4 @@
-"""Tests for TR-05 (#0cdd5328): email/password (JWT) mode used to call
+"""Regression tests: email/password (JWT) mode used to call
 /v1/documents/*, which never existed on the control-plane (confirmed absent
 across the full git history of evc-team-relay-cp). This suite covers the fix:
 
