@@ -254,7 +254,7 @@ class TestUpsertFileAgentKey:
 
 
 class TestUpsertFileEmailPassword:
-    """Email/password mode has no backend write route (TR-05, #0cdd5328) — must
+    """Email/password mode has no backend write route — must
     raise clearly instead of hitting the nonexistent /v1/documents/* API these
     tests used to mock. The old mocked "success" here never worked against a
     real server; asserting a raise is the honest behavior.

@@ -184,8 +184,7 @@ Not every tool works in every auth mode, and one group doesn't work in
 | **JWT** (email/password) | `list_files`, `tr_search`, `read_file` | Working, **read-only** by design |
 | **No backend route in either mode** | `read_document`, `write_document`, `delete_file` | Always raise `ValueError` — not an auth restriction |
 
-- **Write access is agent-key-only, by sanctioned policy** (see
-  TR-05 (internal implementation record)):
+- **Write access requires an agent key**:
   `upsert_file` is the only write tool with a working backend route, and it
   only writes when an agent key (`RELAY_AGENT_KEY` / `RELAY_AGENT_KEYS`) is
   configured. JWT mode calling `upsert_file` raises a clear `ValueError`

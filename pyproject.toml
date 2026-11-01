@@ -1,6 +1,6 @@
 [project]
 name = "evc-team-relay-mcp"
-version = "1.0.9"
+version = "1.0.10"
 description = "MCP server for reading and writing Obsidian vault documents via EVC Team Relay"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,7 +23,7 @@ dependencies = [
     # imports directly — an unbounded floor here means every fresh install
     # after that date silently resolves a 2.x that cannot start
     # (ModuleNotFoundError). Ceiling it to the 1.x line; migrating to the 2.x
-    # API is a separate, deliberately-scoped task (#6ad5f88c).
+    # API requires a separate migration.
     # Floor raised from 1.0.0 to 1.7.0: relay_mcp.py's @mcp.tool(annotations=...)
     # calls need mcp.types.ToolAnnotations and FastMCP.tool()'s `annotations`
     # kwarg, neither of which exist before 1.7.0 (confirmed against the actual
